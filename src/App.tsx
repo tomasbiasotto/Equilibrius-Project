@@ -1,4 +1,5 @@
-import { useState } from 'react';
+// src/App.tsx
+import { useState, useEffect } from 'react'; // Adicionar useEffect se não estiver lá
 import { LineChart, BookOpen, Home, Settings as SettingsIcon } from 'lucide-react';
 import MoodTracker from './components/MoodTracker';
 import Journal from './components/Journal';
@@ -12,14 +13,16 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 const AppContent = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { user, signOut } = useAuth();
+  const [journalRefreshKey, setJournalRefreshKey] = useState(0); // Nova chave de atualização
 
-  // Função para abrir a tela de nova entrada do diário
   const handleNewJournalEntry = () => setActiveTab('new-journal-entry');
-  // Função para voltar ao diário após salvar/cancelar
-  const handleBackToJournal = () => setActiveTab('journal');
-  // Função para navegar para outras telas
+
+  const handleBackToJournal = () => {
+    setJournalRefreshKey(prevKey => prevKey + 1); // Atualiza a chave para forçar o refresh
+    setActiveTab('journal');
+  };
+
   const handleNavigate = (screen: string) => setActiveTab(screen);
-  // Função para voltar às configurações
   const handleBackToSettings = () => setActiveTab('settings');
 
   if (!user) {
@@ -36,7 +39,7 @@ const AppContent = () => {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-white/90">{user.email}</span>
-              <button 
+              <button
                 onClick={() => signOut()}
                 className="text-white/80 hover:text-white hover:underline transition-colors"
               >
@@ -50,7 +53,12 @@ const AppContent = () => {
       <main className="max-w-7xl mx-auto px-4 py-8">
         {activeTab === 'dashboard' && <Dashboard onNewEntry={handleNewJournalEntry} />}
         {activeTab === 'mood' && <MoodTracker onNewEntry={handleNewJournalEntry} />}
-        {activeTab === 'journal' && <Journal onNewEntry={handleNewJournalEntry} />}
+        {activeTab === 'journal' && (
+          <Journal
+            onNewEntry={handleNewJournalEntry}
+            key={journalRefreshKey} // Usar a chave aqui ou passar como prop
+          />
+        )}
         {activeTab === 'settings' && <SettingsPanel onNavigate={handleNavigate} />}
         {activeTab === 'new-journal-entry' && (
           <NewJournalEntry userId={user.id} onSave={handleBackToJournal} />
@@ -60,14 +68,15 @@ const AppContent = () => {
         )}
       </main>
 
+      {/* Footer (mantido como está) ... */}
       <footer className="fixed bottom-0 w-full bg-gradient-to-r from-blue-400 via-blue-500 to-brand shadow-md">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-around py-3 relative">
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`flex flex-col items-center relative z-10 px-6 py-1 rounded-lg transition-all duration-200 ${
-                activeTab === 'dashboard' 
-                  ? 'text-white bg-gradient-to-b from-white/20 to-transparent shadow-lg scale-110 font-medium' 
+                activeTab === 'dashboard'
+                  ? 'text-white bg-gradient-to-b from-white/20 to-transparent shadow-lg scale-110 font-medium'
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -80,8 +89,8 @@ const AppContent = () => {
             <button
               onClick={() => setActiveTab('mood')}
               className={`flex flex-col items-center relative z-10 px-6 py-1 rounded-lg transition-all duration-200 ${
-                activeTab === 'mood' 
-                  ? 'text-white bg-gradient-to-b from-white/20 to-transparent shadow-lg scale-110 font-medium' 
+                activeTab === 'mood'
+                  ? 'text-white bg-gradient-to-b from-white/20 to-transparent shadow-lg scale-110 font-medium'
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -94,8 +103,8 @@ const AppContent = () => {
             <button
               onClick={() => setActiveTab('journal')}
               className={`flex flex-col items-center relative z-10 px-6 py-1 rounded-lg transition-all duration-200 ${
-                activeTab === 'journal' 
-                  ? 'text-white bg-gradient-to-b from-white/20 to-transparent shadow-lg scale-110 font-medium' 
+                activeTab === 'journal'
+                  ? 'text-white bg-gradient-to-b from-white/20 to-transparent shadow-lg scale-110 font-medium'
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -108,8 +117,8 @@ const AppContent = () => {
             <button
               onClick={() => setActiveTab('settings')}
               className={`flex flex-col items-center relative z-10 px-6 py-1 rounded-lg transition-all duration-200 ${
-                activeTab === 'settings' 
-                  ? 'text-white bg-gradient-to-b from-white/20 to-transparent shadow-lg scale-110 font-medium' 
+                activeTab === 'settings'
+                  ? 'text-white bg-gradient-to-b from-white/20 to-transparent shadow-lg scale-110 font-medium'
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
