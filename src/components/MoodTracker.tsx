@@ -1,9 +1,8 @@
-
-
+// src/components/MoodTracker.tsx
 import { useState, useEffect } from 'react';
 import { BookOpen, Calendar, X } from 'lucide-react';
 import DatePicker from 'react-datepicker';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, parseISO } from 'date-fns'; // Adicionado parseISO
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,8 +14,10 @@ interface MoodEntry {
   id: string;
   user_id: string;
   mood_value: number;
-  created_at: string;
   note?: string;
+  entry_date: string; // YYYY-MM-DD string from database
+  created_at: string;
+  updated_at: string;
 }
 
 interface MoodTrackerProps {
@@ -25,127 +26,155 @@ interface MoodTrackerProps {
 
 const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
   const { user } = useAuth();
-  const [selected, setSelected] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [selectedMood, setSelectedMood] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date()); // Default to today
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [moodHistory, setMoodHistory] = useState<MoodEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [savedToday, setSavedToday] = useState(false);
-  
-  // Buscar histórico de humor
+  const [isEntrySavedForSelectedDate, setIsEntrySavedForSelectedDate] = useState(false);
+
+  // Função para formatar Date para YYYY-MM-DD string
+  const formatDateForSupabase = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
+  // Buscar histórico de humor quando o usuário muda
   useEffect(() => {
     if (user) {
       fetchMoodHistory();
     }
   }, [user]);
-  
-  // Verificar se já existe um registro para a data selecionada
+
+  // Atualizar humor selecionado e status de 'salvo' quando selectedDate ou moodHistory mudam
   useEffect(() => {
-    if (selectedDate && moodHistory.length > 0) {
-      const entryForSelectedDate = moodHistory.find(entry => 
-        isSameDay(new Date(entry.created_at), selectedDate)
+    if (moodHistory.length > 0) {
+      const entryForSelectedDate = moodHistory.find(entry =>
+        isSameDay(parseISO(entry.entry_date), selectedDate) // Usar parseISO para converter string para Date
       );
-      
+
       if (entryForSelectedDate) {
-        setSelected(entryForSelectedDate.mood_value);
-        setSavedToday(isSameDay(new Date(entryForSelectedDate.created_at), new Date()));
+        setSelectedMood(entryForSelectedDate.mood_value);
+        setIsEntrySavedForSelectedDate(true);
       } else {
-        setSelected(null);
-        setSavedToday(false);
+        setSelectedMood(null);
+        setIsEntrySavedForSelectedDate(false);
       }
+    } else {
+      // Se não há histórico, reseta o humor selecionado e o status de salvo
+      setSelectedMood(null);
+      setIsEntrySavedForSelectedDate(false);
     }
   }, [selectedDate, moodHistory]);
-  
+
   const fetchMoodHistory = async () => {
+    if (!user) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('mood_entries')
         .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
-        
+        .eq('user_id', user.id)
+        .order('entry_date', { ascending: false }); // Ordenar por entry_date
+
       if (error) throw error;
       setMoodHistory(data || []);
     } catch (err) {
       console.error('Erro ao buscar histórico de humor:', err);
+      setMoodHistory([]); // Garante que o histórico seja limpo em caso de erro
     } finally {
       setLoading(false);
     }
   };
-  
+
   const saveMoodEntry = async () => {
-    if (!selected || !user || !selectedDate) return;
-    
+    if (!selectedMood || !user) return;
+
     setLoading(true);
+    const formattedEntryDate = formatDateForSupabase(selectedDate);
+
     try {
-      // Verificar se já existe um registro para a data selecionada
-      const existingEntry = moodHistory.find(entry => 
-        isSameDay(new Date(entry.created_at), selectedDate)
-      );
-      
+      // Verificar se já existe um registro para user_id e entry_date
+      const { data: existingEntry, error: fetchError } = await supabase
+        .from('mood_entries')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('entry_date', formattedEntryDate)
+        .single(); // .single() retorna um erro se mais de uma linha ou nenhuma for encontrada (a menos que seja null)
+
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116: "Query returned no rows" (ok para insert)
+        throw fetchError;
+      }
+
       if (existingEntry) {
         // Atualizar registro existente
-        const { error } = await supabase
+        const { error: updateError } = await supabase
           .from('mood_entries')
-          .update({ mood_value: selected })
+          .update({ mood_value: selectedMood /*, note: 'nova nota se houver' */ })
           .eq('id', existingEntry.id);
-          
-        if (error) throw error;
+
+        if (updateError) throw updateError;
       } else {
         // Criar novo registro
-        const { error } = await supabase
+        const { error: insertError } = await supabase
           .from('mood_entries')
-          .insert([{ 
-            user_id: user.id, 
-            mood_value: selected, 
-            created_at: selectedDate.toISOString() 
+          .insert([{
+            user_id: user.id,
+            mood_value: selectedMood,
+            entry_date: formattedEntryDate,
+            // note: 'nota inicial se houver'
           }]);
-          
-        if (error) throw error;
+
+        if (insertError) throw insertError;
       }
-      
-      // Atualizar histórico
-      fetchMoodHistory();
-      setSavedToday(isSameDay(selectedDate, new Date()));
+
+      // Atualizar histórico e UI
+      await fetchMoodHistory(); // Re-busca para refletir a mudança
+      setIsEntrySavedForSelectedDate(true); // Marca como salvo para a data selecionada
     } catch (err) {
       console.error('Erro ao salvar humor:', err);
+      // Adicionar feedback para o usuário aqui, se desejar (ex: toast, alert)
     } finally {
       setLoading(false);
     }
   };
-  
-  const formatSelectedDate = () => {
-    if (!selectedDate) return 'Hoje';
-    return isSameDay(selectedDate, new Date()) 
-      ? 'Hoje' 
+
+  const formatDisplayDate = () => {
+    return isSameDay(selectedDate, new Date())
+      ? 'Hoje'
       : format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
   };
-  
+
   const handleDateChange = (date: Date | null) => {
-    setSelectedDate(date);
+    if (date) {
+      setSelectedDate(date);
+    }
     setIsCalendarOpen(false);
   };
-  
+
   const resetToToday = () => {
     setSelectedDate(new Date());
+    // O useEffect [selectedDate, moodHistory] cuidará de atualizar selectedMood e isEntrySavedForSelectedDate
   };
+
+  const canSave = selectedMood !== null; // Pode salvar se um humor foi selecionado
 
   return (
     <div className="space-y-8">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">Humor {isSameDay(selectedDate || new Date(), new Date()) ? 'de Hoje' : 'do Dia'}</h2>
-          
+          <h2 className="text-xl font-semibold text-gray-800">
+            Humor {isSameDay(selectedDate, new Date()) ? 'de Hoje' : `do dia ${format(selectedDate, 'dd/MM')}`}
+          </h2>
+
           <div className="relative">
-            <button 
+            <button
               onClick={() => setIsCalendarOpen(!isCalendarOpen)}
               className="flex items-center space-x-2 bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Calendar size={16} className="text-blue-500" />
-              <span className="text-sm">{formatSelectedDate()}</span>
-              {!isSameDay(selectedDate || new Date(), new Date()) && (
-                <button 
+              <span className="text-sm">{formatDisplayDate()}</span>
+              {!isSameDay(selectedDate, new Date()) && (
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     resetToToday();
@@ -156,74 +185,74 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                 </button>
               )}
             </button>
-            
+
             {isCalendarOpen && (
               <div className="absolute z-20 mt-1 right-0 bg-white shadow-xl rounded-lg border border-gray-200 p-1">
                 <div className="p-2 border-b border-gray-100 mb-1">
                   <h4 className="text-sm font-medium text-gray-700 mb-1">Selecione uma data</h4>
-                  <p className="text-xs text-gray-500">Veja como estava seu humor em dias anteriores</p>
+                  <p className="text-xs text-gray-500">Veja ou registre seu humor em dias anteriores</p>
                 </div>
                 <DatePicker
                   selected={selectedDate}
                   onChange={handleDateChange}
                   inline
                   locale={ptBR}
-                  maxDate={new Date()}
+                  maxDate={new Date()} // Não permite selecionar datas futuras
                   dayClassName={(date: Date): string => {
-                    // Destacar dias com registros de humor
-                    const hasEntry = moodHistory.some(entry => 
-                      isSameDay(new Date(entry.created_at), date)
+                    const hasEntry = moodHistory.some(entry =>
+                      isSameDay(parseISO(entry.entry_date), date)
                     );
-                    
-                    if (isSameDay(date, selectedDate || new Date())) {
+                    const isCurrentlySelected = isSameDay(date, selectedDate);
+
+                    if (isCurrentlySelected) {
                       return "bg-blue-500 text-white rounded-full";
                     } else if (hasEntry) {
                       return "bg-blue-100 text-blue-800 rounded-full font-medium";
                     }
-                    return "";
+                    return "hover:bg-gray-100 rounded-full";
                   }}
                 />
               </div>
             )}
           </div>
         </div>
-        
+
         <div className="flex justify-between items-center max-w-xl mx-auto">
           {moods.map((value) => {
-            const isActive = selected === value;
+            const isActive = selectedMood === value;
             return (
               <button
                 key={value}
-                onClick={() => setSelected(value)}
+                onClick={() => setSelectedMood(value)}
                 className={`flex flex-col items-center focus:outline-none transition-transform ${isActive ? 'scale-110' : 'opacity-80 hover:scale-105'}`}
                 aria-label={`Humor ${value}`}
               >
-                <span className={`rounded-full w-14 h-14 flex items-center justify-center border text-xl font-bold ${isActive ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-500'} mb-2 transition-colors duration-200`}>
+                <span className={`rounded-full w-14 h-14 flex items-center justify-center border text-xl font-bold ${isActive ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-md' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'} mb-2 transition-colors duration-200`}>
                   {value}
                 </span>
               </button>
             );
           })}
         </div>
-        {selected ? (
+        {selectedMood ? (
           <div className="mt-6 text-center space-y-4">
             <div className="flex flex-col items-center">
               <span className="inline-block px-4 py-2 rounded-full bg-blue-50 text-blue-600 font-medium mb-2">
-                Seu humor {isSameDay(selectedDate || new Date(), new Date()) ? 'hoje' : 'neste dia'}: {selected}
+                Seu humor {isSameDay(selectedDate, new Date()) ? 'hoje' : 'neste dia'}: {selectedMood}
               </span>
-              
-              {isSameDay(selectedDate || new Date(), new Date()) && !savedToday && (
-                <button
-                  onClick={saveMoodEntry}
-                  disabled={loading}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  {loading ? 'Salvando...' : 'Salvar registro'}
-                </button>
+
+              {canSave && (
+                 <button
+                    onClick={saveMoodEntry}
+                    disabled={loading}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                  >
+                    {loading ? 'Salvando...' : (isEntrySavedForSelectedDate ? 'Atualizar registro' : 'Salvar registro')}
+                  </button>
               )}
             </div>
-            
-            {(selected === 1 || selected === 2) && onNewEntry && isSameDay(selectedDate || new Date(), new Date()) && (
+
+            {(selectedMood === 1 || selectedMood === 2) && onNewEntry && isSameDay(selectedDate, new Date()) && (
               <div className="animate-fadeIn">
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 mb-4 text-left">
                   <p className="text-blue-800 mb-2">Parece que você não está se sentindo muito bem hoje.</p>
@@ -241,47 +270,47 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
           </div>
         ) : (
           <div className="mt-6 text-center">
-            {isSameDay(selectedDate || new Date(), new Date()) ? (
-              <p className="text-gray-500">Selecione seu humor hoje</p>
-            ) : (
-              <p className="text-gray-500">Nenhum registro de humor para esta data</p>
-            )}
+            <p className="text-gray-500">
+              {isSameDay(selectedDate, new Date())
+                ? 'Selecione seu humor para hoje'
+                : 'Nenhum registro de humor para esta data. Selecione para adicionar.'}
+            </p>
           </div>
         )}
       </div>
 
+      {/* Histórico de Humor */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">Histórico de Humor</h3>
-        {moodHistory.length > 0 ? (
+        <h3 className="text-lg font-semibold mb-4 text-gray-800">Histórico Recente (últimos 14 dias com registro)</h3>
+        {loading && moodHistory.length === 0 ? <p className="text-gray-500">Carregando histórico...</p> : null}
+        {!loading && moodHistory.length > 0 ? (
           <div className="overflow-hidden">
             <div className="flex overflow-x-auto pb-4 -mx-2 px-2">
               <div className="flex space-x-2">
-                {moodHistory.slice(0, 14).map((entry) => {
-                  const entryDate = new Date(entry.created_at);
-                  const isToday = isSameDay(entryDate, new Date());
-                  const isSelected = selectedDate && isSameDay(entryDate, selectedDate);
-                  
-                  // Definir cores com base no valor do humor
+                {moodHistory.slice(0, 14).map((entry) => { // Mostra os 14 mais recentes da query (já ordenada)
+                  const entryDateObject = parseISO(entry.entry_date);
+                  const isHistorySelected = isSameDay(entryDateObject, selectedDate);
+
                   const getColorClass = (value: number) => {
                     switch(value) {
-                      case 1: return 'bg-red-100 text-red-800 border-red-200';
-                      case 2: return 'bg-orange-100 text-orange-800 border-orange-200';
-                      case 3: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-                      case 4: return 'bg-blue-100 text-blue-800 border-blue-200';
-                      case 5: return 'bg-green-100 text-green-800 border-green-200';
-                      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+                      case 1: return 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200';
+                      case 2: return 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200';
+                      case 3: return 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200';
+                      case 4: return 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200';
+                      case 5: return 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200';
+                      default: return 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200';
                     }
                   };
-                  
+
                   return (
                     <button
                       key={entry.id}
-                      onClick={() => setSelectedDate(entryDate)}
-                      className={`flex flex-col items-center min-w-16 p-2 rounded-lg border transition-all ${isSelected ? 'ring-2 ring-blue-500 scale-105' : ''} ${getColorClass(entry.mood_value)}`}
+                      onClick={() => setSelectedDate(entryDateObject)}
+                      className={`flex flex-col items-center min-w-16 p-2 rounded-lg border transition-all ${isHistorySelected ? 'ring-2 ring-blue-500 scale-105' : 'hover:scale-105'} ${getColorClass(entry.mood_value)}`}
                     >
                       <span className="text-xl font-bold">{entry.mood_value}</span>
                       <span className="text-xs whitespace-nowrap">
-                        {isToday ? 'Hoje' : format(entryDate, 'dd/MM', { locale: ptBR })}
+                        {isSameDay(entryDateObject, new Date()) ? 'Hoje' : format(entryDateObject, 'dd/MM', { locale: ptBR })}
                       </span>
                     </button>
                   );
@@ -289,7 +318,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
               </div>
             </div>
             <div className="text-right mt-2">
-              <button 
+              <button
                 onClick={() => setIsCalendarOpen(true)}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium inline-flex items-center"
               >
@@ -299,28 +328,16 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
             </div>
           </div>
         ) : (
-          <div className="h-32 flex items-center justify-center border border-dashed border-gray-200 rounded-lg">
-            <p className="text-gray-500">Nenhum registro de humor encontrado</p>
+          !loading && <div className="h-32 flex items-center justify-center border border-dashed border-gray-200 rounded-lg">
+            <p className="text-gray-500">Nenhum registro de humor encontrado ainda.</p>
           </div>
         )}
       </div>
 
+      {/* Insights (Placeholder) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">Insights</h3>
-        <ul className="space-y-4">
-          <li className="flex items-center space-x-3">
-            <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-            <span>Seu humor tende a ser melhor pela manhã</span>
-          </li>
-          <li className="flex items-center space-x-3">
-            <div className="h-2 w-2 bg-yellow-500 rounded-full"></div>
-            <span>Dias com exercícios estão relacionados com humor melhor</span>
-          </li>
-          <li className="flex items-center space-x-3">
-            <div className="h-2 w-2 bg-red-500 rounded-full"></div>
-            <span>Considere adicionar mais tempo para relaxamento</span>
-          </li>
-        </ul>
+        <h3 className="text-lg font-semibold mb-4 text-gray-800">Insights (Em Breve)</h3>
+        <p className="text-gray-500">Em breve, você verá insights baseados no seu histórico de humor.</p>
       </div>
     </div>
   );
