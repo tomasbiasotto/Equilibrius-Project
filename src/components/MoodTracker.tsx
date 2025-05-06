@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, Calendar, X } from 'lucide-react';
 import DatePicker from 'react-datepicker';
-import { format, isSameDay, parseISO } from 'date-fns'; // Adicionado parseISO
+import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,29 +27,32 @@ interface MoodTrackerProps {
 const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
   const { user } = useAuth();
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date()); // Default to today
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [moodHistory, setMoodHistory] = useState<MoodEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [isEntrySavedForSelectedDate, setIsEntrySavedForSelectedDate] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null); // Para feedback ao usuário
 
-  // Função para formatar Date para YYYY-MM-DD string
   const formatDateForSupabase = (date: Date): string => {
     return date.toISOString().split('T')[0];
   };
 
-  // Buscar histórico de humor quando o usuário muda
   useEffect(() => {
     if (user) {
       fetchMoodHistory();
+    } else {
+      // Se o usuário deslogar, limpa o estado relacionado ao usuário
+      setMoodHistory([]);
+      setSelectedMood(null);
+      setIsEntrySavedForSelectedDate(false);
     }
   }, [user]);
 
-  // Atualizar humor selecionado e status de 'salvo' quando selectedDate ou moodHistory mudam
   useEffect(() => {
     if (moodHistory.length > 0) {
       const entryForSelectedDate = moodHistory.find(entry =>
-        isSameDay(parseISO(entry.entry_date), selectedDate) // Usar parseISO para converter string para Date
+        isSameDay(parseISO(entry.entry_date), selectedDate)
       );
 
       if (entryForSelectedDate) {
@@ -60,27 +63,30 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
         setIsEntrySavedForSelectedDate(false);
       }
     } else {
-      // Se não há histórico, reseta o humor selecionado e o status de salvo
       setSelectedMood(null);
       setIsEntrySavedForSelectedDate(false);
     }
+    // Limpar feedback ao mudar a data ou histórico
+    setFeedbackMessage(null);
   }, [selectedDate, moodHistory]);
 
   const fetchMoodHistory = async () => {
     if (!user) return;
     setLoading(true);
+    setFeedbackMessage(null);
     try {
       const { data, error } = await supabase
         .from('mood_entries')
         .select('*')
         .eq('user_id', user.id)
-        .order('entry_date', { ascending: false }); // Ordenar por entry_date
+        .order('entry_date', { ascending: false });
 
       if (error) throw error;
       setMoodHistory(data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao buscar histórico de humor:', err);
-      setMoodHistory([]); // Garante que o histórico seja limpo em caso de erro
+      setMoodHistory([]);
+      setFeedbackMessage(`Erro ao carregar histórico: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -90,49 +96,58 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
     if (!selectedMood || !user) return;
 
     setLoading(true);
+    setFeedbackMessage(null);
     const formattedEntryDate = formatDateForSupabase(selectedDate);
 
     try {
       // Verificar se já existe um registro para user_id e entry_date
-      const { data: existingEntry, error: fetchError } = await supabase
+      const { data: existingEntries, error: fetchError } = await supabase
         .from('mood_entries')
-        .select('id')
+        .select('id') // Selecionamos 'id' para usar no update
         .eq('user_id', user.id)
         .eq('entry_date', formattedEntryDate)
-        .single(); // .single() retorna um erro se mais de uma linha ou nenhuma for encontrada (a menos que seja null)
+        .limit(1); // Buscamos no máximo 1 registro
 
-      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116: "Query returned no rows" (ok para insert)
-        throw fetchError;
+      if (fetchError) {
+        throw fetchError; // Lança o erro para ser pego pelo catch
       }
 
-      if (existingEntry) {
-        // Atualizar registro existente
+      let operationSuccessful = false;
+
+      if (existingEntries && existingEntries.length > 0) {
+        // Registro existente encontrado
+        const existingEntry = existingEntries[0];
         const { error: updateError } = await supabase
           .from('mood_entries')
-          .update({ mood_value: selectedMood /*, note: 'nova nota se houver' */ })
+          .update({ mood_value: selectedMood })
           .eq('id', existingEntry.id);
 
         if (updateError) throw updateError;
+        setFeedbackMessage('Humor atualizado com sucesso!');
+        operationSuccessful = true;
       } else {
-        // Criar novo registro
+        // Nenhum registro existente, criar novo registro
         const { error: insertError } = await supabase
           .from('mood_entries')
           .insert([{
             user_id: user.id,
             mood_value: selectedMood,
             entry_date: formattedEntryDate,
-            // note: 'nota inicial se houver'
           }]);
 
         if (insertError) throw insertError;
+        setFeedbackMessage('Humor salvo com sucesso!');
+        operationSuccessful = true;
       }
 
-      // Atualizar histórico e UI
-      await fetchMoodHistory(); // Re-busca para refletir a mudança
-      setIsEntrySavedForSelectedDate(true); // Marca como salvo para a data selecionada
-    } catch (err) {
+      if (operationSuccessful) {
+        await fetchMoodHistory(); // Re-busca para refletir a mudança
+        setIsEntrySavedForSelectedDate(true);
+      }
+
+    } catch (err: any) {
       console.error('Erro ao salvar humor:', err);
-      // Adicionar feedback para o usuário aqui, se desejar (ex: toast, alert)
+      setFeedbackMessage(`Erro ao salvar: ${err.message || 'Tente novamente.'}`);
     } finally {
       setLoading(false);
     }
@@ -153,13 +168,19 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
 
   const resetToToday = () => {
     setSelectedDate(new Date());
-    // O useEffect [selectedDate, moodHistory] cuidará de atualizar selectedMood e isEntrySavedForSelectedDate
   };
 
-  const canSave = selectedMood !== null; // Pode salvar se um humor foi selecionado
+  const canSave = selectedMood !== null;
 
   return (
     <div className="space-y-8">
+      {/* Feedback Message */}
+      {feedbackMessage && (
+        <div className={`p-3 rounded-md text-sm mb-4 ${feedbackMessage.startsWith('Erro') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+          {feedbackMessage}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-800">
@@ -197,7 +218,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                   onChange={handleDateChange}
                   inline
                   locale={ptBR}
-                  maxDate={new Date()} // Não permite selecionar datas futuras
+                  maxDate={new Date()}
                   dayClassName={(date: Date): string => {
                     const hasEntry = moodHistory.some(entry =>
                       isSameDay(parseISO(entry.entry_date), date)
@@ -279,7 +300,6 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
         )}
       </div>
 
-      {/* Histórico de Humor */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h3 className="text-lg font-semibold mb-4 text-gray-800">Histórico Recente (últimos 14 dias com registro)</h3>
         {loading && moodHistory.length === 0 ? <p className="text-gray-500">Carregando histórico...</p> : null}
@@ -287,7 +307,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
           <div className="overflow-hidden">
             <div className="flex overflow-x-auto pb-4 -mx-2 px-2">
               <div className="flex space-x-2">
-                {moodHistory.slice(0, 14).map((entry) => { // Mostra os 14 mais recentes da query (já ordenada)
+                {moodHistory.slice(0, 14).map((entry) => {
                   const entryDateObject = parseISO(entry.entry_date);
                   const isHistorySelected = isSameDay(entryDateObject, selectedDate);
 
@@ -334,7 +354,6 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
         )}
       </div>
 
-      {/* Insights (Placeholder) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h3 className="text-lg font-semibold mb-4 text-gray-800">Insights (Em Breve)</h3>
         <p className="text-gray-500">Em breve, você verá insights baseados no seu histórico de humor.</p>
