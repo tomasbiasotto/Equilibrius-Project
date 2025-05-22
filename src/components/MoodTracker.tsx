@@ -187,14 +187,15 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
             Humor {isSameDay(selectedDate, new Date()) ? 'de Hoje' : `do dia ${format(selectedDate, 'dd/MM')}`}
           </h2>
 
-          <div className="relative">
-            <button
-              onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-              className="flex items-center space-x-2 bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Calendar size={16} className="text-blue-500" />
-              <span className="text-sm">{formatDisplayDate()}</span>
-              {!isSameDay(selectedDate, new Date()) && (
+          {/* Mostrar o botão de calendário apenas quando não estiver visualizando o humor de hoje */}
+          {!isSameDay(selectedDate, new Date()) && (
+            <div className="relative">
+              <button
+                onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                className="flex items-center space-x-2 bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Calendar size={16} className="text-blue-500" />
+                <span className="text-sm">{formatDisplayDate()}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -204,38 +205,38 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                 >
                   <X size={14} />
                 </button>
-              )}
-            </button>
+              </button>
+              
+              {isCalendarOpen && (
+                <div className="absolute z-20 mt-1 right-0 bg-white shadow-xl rounded-lg border border-gray-200 p-1">
+                  <div className="p-2 border-b border-gray-100 mb-1">
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Selecione uma data</h4>
+                    <p className="text-xs text-gray-500">Veja ou registre seu humor em dias anteriores</p>
+                  </div>
+                  <DatePicker
+                    selected={selectedDate}
+                    onChange={handleDateChange}
+                    inline
+                    locale={ptBR}
+                    maxDate={new Date()}
+                    dayClassName={(date: Date): string => {
+                      const hasEntry = moodHistory.some(entry =>
+                        isSameDay(parseISO(entry.entry_date), date)
+                      );
+                      const isCurrentlySelected = isSameDay(date, selectedDate);
 
-            {isCalendarOpen && (
-              <div className="absolute z-20 mt-1 right-0 bg-white shadow-xl rounded-lg border border-gray-200 p-1">
-                <div className="p-2 border-b border-gray-100 mb-1">
-                  <h4 className="text-sm font-medium text-gray-700 mb-1">Selecione uma data</h4>
-                  <p className="text-xs text-gray-500">Veja ou registre seu humor em dias anteriores</p>
+                      if (isCurrentlySelected) {
+                        return "bg-blue-500 text-white rounded-full";
+                      } else if (hasEntry) {
+                        return "bg-blue-100 text-blue-800 rounded-full font-medium";
+                      }
+                      return "hover:bg-gray-100 rounded-full";
+                    }}
+                  />
                 </div>
-                <DatePicker
-                  selected={selectedDate}
-                  onChange={handleDateChange}
-                  inline
-                  locale={ptBR}
-                  maxDate={new Date()}
-                  dayClassName={(date: Date): string => {
-                    const hasEntry = moodHistory.some(entry =>
-                      isSameDay(parseISO(entry.entry_date), date)
-                    );
-                    const isCurrentlySelected = isSameDay(date, selectedDate);
-
-                    if (isCurrentlySelected) {
-                      return "bg-blue-500 text-white rounded-full";
-                    } else if (hasEntry) {
-                      return "bg-blue-100 text-blue-800 rounded-full font-medium";
-                    }
-                    return "hover:bg-gray-100 rounded-full";
-                  }}
-                />
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between items-center max-w-xl mx-auto">
@@ -248,7 +249,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                 className={`flex flex-col items-center focus:outline-none transition-transform ${isActive ? 'scale-110' : 'opacity-80 hover:scale-105'}`}
                 aria-label={`Humor ${value}`}
               >
-                <span className={`rounded-full w-14 h-14 flex items-center justify-center border text-xl font-bold ${isActive ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-md' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'} mb-2 transition-colors duration-200`}>
+                <span className={`rounded-full w-14 h-14 flex items-center justify-center text-xl font-bold ${isActive ? 'ring-2 ring-blue-500 bg-blue-50 text-blue-600 shadow-md' : 'border border-gray-200 bg-white text-gray-500 hover:border-gray-300'} mb-2 transition-all duration-200`}>
                   {value}
                 </span>
               </button>
@@ -306,19 +307,20 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
         {!loading && moodHistory.length > 0 ? (
           <div className="overflow-hidden">
             <div className="flex overflow-x-auto pb-4 -mx-2 px-2">
-              <div className="flex space-x-2">
+              <div className="flex space-x-4">
                 {moodHistory.slice(0, 14).map((entry) => {
                   const entryDateObject = parseISO(entry.entry_date);
                   const isHistorySelected = isSameDay(entryDateObject, selectedDate);
-
-                  const getColorClass = (value: number) => {
+                  
+                  // Função simplificada para retornar apenas a cor de fundo e texto
+                  const getColorClasses = (value: number) => {
                     switch(value) {
-                      case 1: return 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200';
-                      case 2: return 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200';
-                      case 3: return 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200';
-                      case 4: return 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200';
-                      case 5: return 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200';
-                      default: return 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200';
+                      case 1: return 'bg-blue-50 text-blue-600';
+                      case 2: return 'bg-blue-100 text-blue-700';
+                      case 3: return 'bg-blue-200 text-blue-800';
+                      case 4: return 'bg-blue-300 text-blue-900';
+                      case 5: return 'bg-blue-400 text-white';
+                      default: return 'bg-gray-100 text-gray-800';
                     }
                   };
 
@@ -326,7 +328,17 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                     <button
                       key={entry.id}
                       onClick={() => setSelectedDate(entryDateObject)}
-                      className={`flex flex-col items-center min-w-16 p-2 rounded-lg border transition-all ${isHistorySelected ? 'ring-2 ring-blue-500 scale-105' : 'hover:scale-105'} ${getColorClass(entry.mood_value)}`}
+                      className={`
+                        flex flex-col items-center 
+                        min-w-16 
+                        p-2 
+                        rounded-lg 
+                        ${getColorClasses(entry.mood_value)}
+                        ${isHistorySelected 
+                          ? 'outline-none border-0 ring-2 ring-offset-1 ring-blue-500 scale-105' 
+                          : 'border border-blue-300 hover:scale-105'}
+                        transition-all
+                      `}
                     >
                       <span className="text-xl font-bold">{entry.mood_value}</span>
                       <span className="text-xs whitespace-nowrap">
@@ -337,15 +349,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                 })}
               </div>
             </div>
-            <div className="text-right mt-2">
-              <button
-                onClick={() => setIsCalendarOpen(true)}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium inline-flex items-center"
-              >
-                <Calendar size={14} className="mr-1" />
-                <span>Ver calendário completo</span>
-              </button>
-            </div>
+            {/* Botão de calendário removido */}
           </div>
         ) : (
           !loading && <div className="h-32 flex items-center justify-center border border-dashed border-gray-200 rounded-lg">
@@ -354,10 +358,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">Insights (Em Breve)</h3>
-        <p className="text-gray-500">Em breve, você verá insights baseados no seu histórico de humor.</p>
-      </div>
+      {/* Seção de Insights removida */}
     </div>
   );
 };
