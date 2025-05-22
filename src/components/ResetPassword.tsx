@@ -36,7 +36,7 @@ const ResetPassword: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
       
       {message && (
         <div className={`p-3 mb-4 rounded ${
-          message.type === 'success' ? 'bg-green-100 hover:text-brand/80' : 'bg-red-100 text-red-700'
+          message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
         }`}>
           {message.text}
         </div>

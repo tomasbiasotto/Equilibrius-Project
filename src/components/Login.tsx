@@ -38,7 +38,7 @@ const Login: React.FC = () => {
 
   if (authMode === 'reset') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
         <ResetPassword onCancel={() => setAuthMode('email')} />
       </div>
     );
@@ -46,17 +46,17 @@ const Login: React.FC = () => {
 
   if (authMode === 'phone') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
         <PhoneLogin onCancel={() => setAuthMode('email')} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-purple-600">Equilibrius</h1>
+          <h1 className="text-3xl font-bold text-brand">Equilibrius</h1>
           <p className="text-gray-600 mt-2">Seu equilíbrio emocional em primeiro lugar</p>
         </div>
         
@@ -76,7 +76,7 @@ const Login: React.FC = () => {
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand focus:border-brand"
               required
               disabled={loading}
             />
@@ -90,14 +90,14 @@ const Login: React.FC = () => {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand focus:border-brand"
               required
               disabled={loading}
             />
           </div>
           <button
             type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-brand hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand disabled:opacity-50"
             disabled={loading}
           >
             {loading ? 'Processando...' : (isRegistering ? 'Cadastrar' : 'Entrar')}
@@ -116,7 +116,7 @@ const Login: React.FC = () => {
 
           <button
             onClick={() => setAuthMode('phone')}
-            className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+            className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand"
           >
             Telefone
           </button>
@@ -124,7 +124,7 @@ const Login: React.FC = () => {
           <div className="text-center space-y-2">
             <button
               onClick={() => setIsRegistering(!isRegistering)}
-              className="text-sm text-purple-600 hover:text-purple-500"
+              className="text-sm text-brand hover:text-blue-500"
             >
               {isRegistering 
                 ? 'Já tem uma conta? Entre aqui' 
@@ -132,7 +132,7 @@ const Login: React.FC = () => {
             </button>
             <button
               onClick={() => setAuthMode('reset')}
-              className="block w-full text-sm text-purple-600 hover:text-purple-500"
+              className="block w-full text-sm text-brand hover:text-blue-500"
             >
               Esqueceu sua senha?
             </button>
