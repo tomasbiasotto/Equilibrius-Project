@@ -173,7 +173,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
   const canSave = selectedMood !== null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 pb-20">
       {/* Feedback Message */}
       {feedbackMessage && (
         <div className={`p-3 rounded-md text-sm mb-4 ${feedbackMessage.startsWith('Erro') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
@@ -275,16 +275,19 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
             </div>
 
             {(selectedMood === 1 || selectedMood === 2) && onNewEntry && isSameDay(selectedDate, new Date()) && (
-              <div className="animate-fadeIn">
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 mb-4 text-left">
-                  <p className="text-blue-800 mb-2">Parece que você não está se sentindo muito bem hoje.</p>
-                  <p className="text-blue-700 text-sm">Escrever sobre seus sentimentos pode ajudar a processá-los melhor.</p>
+              <div className="animate-fadeIn mt-8 max-w-lg mx-auto">
+                {/* Box com sombra mais pronunciada e borda mais visível */}
+                <div className="p-6 bg-blue-50 rounded-xl border-2 border-blue-300 mb-6 text-left shadow-lg transform hover:scale-[1.02] transition-all">
+                  <h3 className="text-blue-800 font-bold mb-3 text-lg">Parece que você não está se sentindo muito bem hoje.</h3>
+                  <p className="text-blue-700">Escrever sobre seus sentimentos pode ajudar a processá-los melhor.</p>
                 </div>
+                
+                {/* Botão maior, mais destacado e com efeito de hover melhorado */}
                 <button
                   onClick={onNewEntry}
-                  className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2 mx-auto shadow-sm"
+                  className="bg-blue-500 text-white px-8 py-4 rounded-xl hover:bg-blue-600 transition-all flex items-center justify-center space-x-3 mx-auto shadow-lg font-medium text-lg transform hover:scale-105 hover:shadow-xl"
                 >
-                  <BookOpen size={18} />
+                  <BookOpen size={22} />
                   <span>Escrever no Diário</span>
                 </button>
               </div>
@@ -312,7 +315,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                   const entryDateObject = parseISO(entry.entry_date);
                   const isHistorySelected = isSameDay(entryDateObject, selectedDate);
                   
-                  // Função simplificada para retornar apenas a cor de fundo e texto
+                  // Função para cores de fundo e texto
                   const getColorClasses = (value: number) => {
                     switch(value) {
                       case 1: return 'bg-blue-50 text-blue-600';
@@ -324,27 +327,34 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                     }
                   };
 
+                  // Usando uma abordagem mais simples e robusta
                   return (
-                    <button
-                      key={entry.id}
-                      onClick={() => setSelectedDate(entryDateObject)}
-                      className={`
-                        flex flex-col items-center 
-                        min-w-16 
-                        p-2 
-                        rounded-lg 
-                        ${getColorClasses(entry.mood_value)}
-                        ${isHistorySelected 
-                          ? 'outline-none border-0 ring-2 ring-offset-1 ring-blue-500 scale-105' 
-                          : 'border border-blue-300 hover:scale-105'}
-                        transition-all
-                      `}
-                    >
-                      <span className="text-xl font-bold">{entry.mood_value}</span>
-                      <span className="text-xs whitespace-nowrap">
-                        {isSameDay(entryDateObject, new Date()) ? 'Hoje' : format(entryDateObject, 'dd/MM', { locale: ptBR })}
-                      </span>
-                    </button>
+                    <div key={entry.id} className="relative m-1">
+                      {/* Borda destacada para o estado selecionado */}
+                      {isHistorySelected && (
+                        <div className="absolute inset-0 border-2 border-blue-600 rounded-lg z-0" style={{margin: '-3px'}}></div>
+                      )}
+                      {/* Botão principal */}
+                      <button
+                        onClick={() => setSelectedDate(entryDateObject)}
+                        className={`
+                          relative z-10
+                          flex flex-col items-center justify-center
+                          min-w-16
+                          p-3
+                          rounded-lg
+                          border-2 ${isHistorySelected ? 'border-transparent' : 'border-blue-300'}
+                          ${getColorClasses(entry.mood_value)}
+                          ${isHistorySelected ? 'scale-105' : 'hover:border-blue-400'}
+                          transition-all
+                        `}
+                      >
+                        <span className="text-xl font-bold">{entry.mood_value}</span>
+                        <span className="text-xs whitespace-nowrap">
+                          {isSameDay(entryDateObject, new Date()) ? 'Hoje' : format(entryDateObject, 'dd/MM', { locale: ptBR })}
+                        </span>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
