@@ -1,6 +1,7 @@
 // src/App.tsx
-import { useState, useEffect } from 'react'; // Adicionar useEffect se não estiver lá
+import { useState, useEffect } from 'react';
 import { LineChart, BookOpen, Home, Settings as SettingsIcon } from 'lucide-react';
+import { supabase } from './lib/supabase';
 import MoodTracker from './components/MoodTracker';
 import Journal from './components/Journal';
 import Dashboard from './components/Dashboard';
@@ -8,18 +9,68 @@ import SettingsPanel from './components/Settings';
 import Login from './components/Login';
 import NewJournalEntry from './components/NewJournalEntry';
 import FamilyRegisterPage from './components/FamilyRegisterPage';
+import MoodTrackerAlert from './components/MoodTrackerAlert';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 const AppContent = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { user, signOut } = useAuth();
-  const [journalRefreshKey, setJournalRefreshKey] = useState(0); // Nova chave de atualização
+  const [journalRefreshKey, setJournalRefreshKey] = useState(0);
+  const [showMoodAlert, setShowMoodAlert] = useState(false);
+  const [moodChecked, setMoodChecked] = useState(false);
 
+  // Função para verificar se o usuário já registrou humor hoje
+  useEffect(() => {
+    const checkTodayMoodEntry = async () => {
+      if (!user) return;
+      
+      try {
+        // Formato da data atual para comparação (YYYY-MM-DD)
+        const today = new Date().toISOString().split('T')[0];
+        
+        const { data, error } = await supabase
+          .from('mood_entries')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('entry_date', today)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('Erro ao verificar registro de humor:', error);
+          return;
+        }
+        
+        // Se não há registro para hoje, mostrar o alerta
+        setShowMoodAlert(!data);
+        setMoodChecked(true);
+      } catch (err) {
+        console.error('Erro ao verificar histórico de humor:', err);
+      }
+    };
+    
+    if (user && !moodChecked) {
+      checkTodayMoodEntry();
+    }
+  }, [user, moodChecked]);
+
+  // Resetar o estado quando o usuário faz logout
+  useEffect(() => {
+    if (!user) {
+      setMoodChecked(false);
+      setShowMoodAlert(false);
+    }
+  }, [user]);
+  
   const handleNewJournalEntry = () => setActiveTab('new-journal-entry');
 
   const handleBackToJournal = () => {
-    setJournalRefreshKey(prevKey => prevKey + 1); // Atualiza a chave para forçar o refresh
+    setJournalRefreshKey(prevKey => prevKey + 1);
     setActiveTab('journal');
+  };
+
+  const handleNavigateToMood = () => {
+    setActiveTab('mood');
+    setShowMoodAlert(false);
   };
 
   const handleNavigate = (screen: string) => setActiveTab(screen);
@@ -49,6 +100,9 @@ const AppContent = () => {
           </div>
         </div>
       </nav>
+      
+      {/* Alerta para registrar humor */}
+      {showMoodAlert && <MoodTrackerAlert onOpenMoodTracker={handleNavigateToMood} />}
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {activeTab === 'dashboard' && <Dashboard onNewEntry={handleNewJournalEntry} />}

@@ -11,6 +11,8 @@ export default {
         float2: 'float2 6s ease-in-out infinite',
         float3: 'float3 10s ease-in-out infinite',
         pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        slideUp: 'slideUp 0.3s ease-out forwards',
+        slideDown: 'slideDown 0.3s ease-in forwards',
       },
       keyframes: {
         float1: {
@@ -24,6 +26,14 @@ export default {
         float3: {
           '0%, 100%': { transform: 'translateY(0) rotate(0deg) scale(1)' },
           '50%': { transform: 'translateY(-30px) rotate(10deg) scale(1.05)' },
+        },
+        slideUp: {
+          '0%': { transform: 'translateY(100%)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        slideDown: {
+          '0%': { transform: 'translateY(0)', opacity: '1' },
+          '100%': { transform: 'translateY(100%)', opacity: '0' },
         },
       },
     },
