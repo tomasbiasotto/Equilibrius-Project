@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ResetPassword from './ResetPassword';
-import PhoneLogin from './PhoneLogin';
+import Register from './Register';
 
-type AuthMode = 'email' | 'phone' | 'reset';
+type AuthMode = 'email' | 'reset' | 'register';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('email');
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,14 +19,10 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const { error } = isRegistering 
-        ? await signUp(email, password)
-        : await signIn(email, password);
+      const { error } = await signIn(email, password);
 
       if (error) {
         setError(error.message);
-      } else if (isRegistering) {
-        setError('Por favor, verifique seu email para confirmar o cadastro.');
       }
     } catch (err) {
       setError('Ocorreu um erro ao processar sua solicitação.');
@@ -53,24 +48,12 @@ const Login: React.FC = () => {
       </div>
     );
   }
-
-  if (authMode === 'phone') {
-    return (
-      <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-100">
-        {/* Elementos decorativos flutuantes */}
-        <div className="absolute top-10 left-10 w-20 h-20 rounded-full bg-blue-100 opacity-60 animate-float1"></div>
-        <div className="absolute top-20 right-20 w-16 h-16 rounded-full bg-blue-200 opacity-50 animate-float2"></div>
-        <div className="absolute bottom-20 left-1/4 w-24 h-24 rounded-full bg-blue-50 opacity-40 animate-float3"></div>
-        <div className="absolute top-1/3 right-1/3 w-12 h-12 rounded-full bg-blue-300 opacity-30 animate-float2"></div>
-      
-        {/* Ícones representativos */}
-        <div className="absolute top-1/4 left-1/5 text-blue-300 opacity-20 transform rotate-12 text-6xl">📱</div>
-        <div className="absolute bottom-1/4 right-1/5 text-blue-400 opacity-20 transform -rotate-6 text-5xl">📞</div>
-        
-        <PhoneLogin onCancel={() => setAuthMode('email')} />
-      </div>
-    );
+  
+  if (authMode === 'register') {
+    return <Register onBack={() => setAuthMode('email')} />;
   }
+
+
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-100">
@@ -157,7 +140,7 @@ const Login: React.FC = () => {
             className="w-full flex justify-center py-3 px-6 border border-transparent rounded-lg shadow-md text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-60 transition-all duration-200 transform hover:translate-y-[-2px] font-medium text-base"
             disabled={loading}
           >
-            {loading ? 'Processando...' : (isRegistering ? 'Começar minha jornada' : 'Entrar no Equilibrius')}
+            {loading ? 'Processando...' : 'Entrar no Equilibrius'}
           </button>
         </form>
 
@@ -167,28 +150,18 @@ const Login: React.FC = () => {
               <div className="w-full border-t border-blue-100"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white/90 backdrop-blur-sm text-blue-500 font-medium">Outras opções</span>
+              <span className="px-4 bg-white/90 backdrop-blur-sm text-blue-500 font-medium">Opções de conta</span>
             </div>
           </div>
 
-          <button
-            onClick={() => setAuthMode('phone')}
-            className="w-full flex justify-center py-3 px-4 border border-blue-200 rounded-lg shadow-sm text-blue-600 bg-blue-50/50 hover:bg-blue-100/50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 font-medium items-center space-x-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-            </svg>
-            <span>Entrar com telefone</span>
-          </button>
+
 
           <div className="text-center space-y-3 mt-4">
             <button
-              onClick={() => setIsRegistering(!isRegistering)}
+              onClick={() => setAuthMode('register')}
               className="text-blue-600 hover:text-blue-800 transition-colors font-medium text-sm hover:underline"
             >
-              {isRegistering 
-                ? '← Já tem uma conta? Entre aqui' 
-                : '🚀 Não tem uma conta? Inicie sua jornada'}
+              🚀 Não tem uma conta? Inicie sua jornada
             </button>
             
             <button

@@ -172,6 +172,35 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
 
   const canSave = selectedMood !== null;
 
+  // Função para definir estilos dos botões de humor baseado no valor (1-5)
+  const getMoodButtonStyles = (value: number, isActive: boolean): string => {
+    // Define as cores do espectro do vermelho ao verde com cores mais vivas
+    const moodColors = {
+      1: { // Muito ruim - Vermelho
+        active: 'bg-red-600 text-white shadow-md ring-2 ring-red-700',
+        inactive: 'bg-red-500 text-white hover:bg-red-600 hover:shadow-md'
+      },
+      2: { // Ruim - Laranja/âmbar
+        active: 'bg-orange-500 text-white shadow-md ring-2 ring-orange-600',
+        inactive: 'bg-orange-400 text-white hover:bg-orange-500 hover:shadow-md'
+      },
+      3: { // Neutro - Amarelo
+        active: 'bg-yellow-500 text-white shadow-md ring-2 ring-yellow-600',
+        inactive: 'bg-yellow-400 text-white hover:bg-yellow-500 hover:shadow-md'
+      },
+      4: { // Bom - Azul claro
+        active: 'bg-blue-500 text-white shadow-md ring-2 ring-blue-600',
+        inactive: 'bg-blue-400 text-white hover:bg-blue-500 hover:shadow-md'
+      },
+      5: { // Muito bom - Verde
+        active: 'bg-green-600 text-white shadow-md ring-2 ring-green-700',
+        inactive: 'bg-green-500 text-white hover:bg-green-600 hover:shadow-md'
+      }
+    };
+    
+    return isActive ? moodColors[value as keyof typeof moodColors].active : moodColors[value as keyof typeof moodColors].inactive;
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {/* Feedback Message */}
@@ -249,7 +278,7 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                 className={`flex flex-col items-center focus:outline-none transition-transform ${isActive ? 'scale-110' : 'opacity-80 hover:scale-105'}`}
                 aria-label={`Humor ${value}`}
               >
-                <span className={`rounded-full w-14 h-14 flex items-center justify-center text-xl font-bold ${isActive ? 'ring-2 ring-blue-500 bg-blue-50 text-blue-600 shadow-md' : 'border border-gray-200 bg-white text-gray-500 hover:border-gray-300'} mb-2 transition-all duration-200`}>
+                <span className={`rounded-full w-14 h-14 flex items-center justify-center text-xl font-bold mb-2 transition-all duration-200 ${getMoodButtonStyles(value, isActive)}`}>
                   {value}
                 </span>
               </button>
@@ -315,24 +344,36 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                   const entryDateObject = parseISO(entry.entry_date);
                   const isHistorySelected = isSameDay(entryDateObject, selectedDate);
                   
-                  // Função para cores de fundo e texto
+                  // Função para cores de fundo e texto que correspondem às cores dos botões de humor
                   const getColorClasses = (value: number) => {
                     switch(value) {
-                      case 1: return 'bg-blue-50 text-blue-600';
-                      case 2: return 'bg-blue-100 text-blue-700';
-                      case 3: return 'bg-blue-200 text-blue-800';
-                      case 4: return 'bg-blue-300 text-blue-900';
-                      case 5: return 'bg-blue-400 text-white';
+                      case 1: return 'bg-red-500 text-white'; // Vermelho
+                      case 2: return 'bg-orange-400 text-white'; // Laranja
+                      case 3: return 'bg-yellow-400 text-white'; // Amarelo
+                      case 4: return 'bg-blue-400 text-white'; // Azul
+                      case 5: return 'bg-green-500 text-white'; // Verde
                       default: return 'bg-gray-100 text-gray-800';
+                    }
+                  };
+                  
+                  // Função para cores das bordas que correspondem às cores dos botões de humor
+                  const getBorderColorClass = (value: number) => {
+                    switch(value) {
+                      case 1: return 'border-red-700'; // Vermelho
+                      case 2: return 'border-orange-600'; // Laranja
+                      case 3: return 'border-yellow-600'; // Amarelo
+                      case 4: return 'border-blue-600'; // Azul
+                      case 5: return 'border-green-700'; // Verde
+                      default: return 'border-gray-400';
                     }
                   };
 
                   // Usando uma abordagem mais simples e robusta
                   return (
                     <div key={entry.id} className="relative m-1">
-                      {/* Borda destacada para o estado selecionado */}
+                      {/* Borda destacada para o estado selecionado com cor correspondente ao humor */}
                       {isHistorySelected && (
-                        <div className="absolute inset-0 border-2 border-blue-600 rounded-lg z-0" style={{margin: '-3px'}}></div>
+                        <div className={`absolute inset-0 border-2 rounded-lg z-0 ${getBorderColorClass(entry.mood_value)}`} style={{margin: '-3px'}}></div>
                       )}
                       {/* Botão principal */}
                       <button
@@ -343,9 +384,9 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
                           min-w-16
                           p-3
                           rounded-lg
-                          border-2 ${isHistorySelected ? 'border-transparent' : 'border-blue-300'}
+                          border-2 ${isHistorySelected ? 'border-transparent' : 'border-gray-200'}
                           ${getColorClasses(entry.mood_value)}
-                          ${isHistorySelected ? 'scale-105' : 'hover:border-blue-400'}
+                          ${isHistorySelected ? 'scale-105' : `hover:${getBorderColorClass(entry.mood_value)}`}
                           transition-all
                         `}
                       >
