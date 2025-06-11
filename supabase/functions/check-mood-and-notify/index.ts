@@ -2,7 +2,7 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Resend } from 'npm:resend' // Importa o Resend via npm specifier
+import { Resend } from 'npm:resend'
 import { format } from "https://esm.sh/date-fns@3.6.0"
 import { ptBR } from "https://esm.sh/date-fns@3.6.0/locale/pt-BR"
 
@@ -15,8 +15,8 @@ const formatDateToYYYYMMDD = (date: Date): string => {
 }
 
 serve(async (req: Request) => {
-  const cronSecretHeader = req.headers.get('X-Cron-Secret'); // Nome correto do header
-  const configuredCronSecret = Deno.env.get('CRON_SECRET'); // Nome correto do segredo
+  const cronSecretHeader = req.headers.get('X-Cron-Secret');
+  const configuredCronSecret = Deno.env.get('CRON_SECRET');
 
   console.log(`DEBUG: Header X-Cron-Secret recebido: ${cronSecretHeader}`);
   console.log(`DEBUG: Segredo CRON_SECRET configurado: ${configuredCronSecret}`);
@@ -29,7 +29,7 @@ serve(async (req: Request) => {
   try {
     const supabaseAdminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')! // Usar SERVICE_ROLE_KEY para bypass RLS
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
@@ -39,8 +39,6 @@ serve(async (req: Request) => {
     }
     const resend = new Resend(resendApiKey)
 
-    // 2. Determinar a data de "ontem"
-    // O cron rodará no início do dia (ex: 00:05 UTC) para verificar o dia anterior.
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(today.getDate() - 1)
@@ -48,7 +46,9 @@ serve(async (req: Request) => {
 
     console.log(`Verificando entradas de humor para a data: ${yesterdayString}`)
 
-    const nomeDaForeignKeyConstraintDeProfilesParaAuthUsers = 'profiles_id_fkey'; // SUBSTITUA PELO VALOR REAL
+    // !!! IMPORTANTE: Substitua 'profiles_id_fkey' pelo nome real da sua constraint FK !!!
+    // Você pode descobrir o nome usando a query SQL que forneci anteriormente.
+    const nomeDaForeignKeyConstraintDeProfilesParaAuthUsers = 'profiles_id_fkey';
 
     const { data: usersData, error: usersError } = await supabaseAdminClient
     .from('profiles')
@@ -60,29 +60,32 @@ serve(async (req: Request) => {
     `)
     .not('family_members', 'is', null)
 
-  if (usersError) throw usersError
-  if (!usersData || usersData.length === 0) {
-    console.log('Nenhum usuário com familiares cadastrados encontrado.')
-    return new Response('Nenhum usuário para processar', { status: 200 })
-  }
-
-  for (const userProfile of usersData) {
-    if (!userProfile.user_auth_info || !userProfile.user_auth_info.email) {
-      console.warn(`Usuário ${userProfile.id} não tem dados de autenticação (email) associados em 'user_auth_info'. Pulando.`);
-      continue;
+    if (usersError) throw usersError
+    if (!usersData || usersData.length === 0) {
+      console.log('Nenhum usuário com familiares cadastrados encontrado.')
+      return new Response('Nenhum usuário para processar', { status: 200 })
     }
 
-    const user = {
-      id: userProfile.id,
-      email: userProfile.user_auth_info.email,
-      fullName: userProfile.full_name || 'Usuário',
-    }
-      };
-      // Adicionar uma verificação para o caso de email ser null, se necessário
-      if (!user.email) {
-        console.warn(`Usuário ${user.id} não possui e-mail associado em auth.users. Pulando.`);
+    for (const userProfile of usersData) {
+      if (!userProfile.user_auth_info || !userProfile.user_auth_info.email) {
+        console.warn(`Usuário ${userProfile.id} não tem dados de autenticação (email) associados em 'user_auth_info'. Pulando.`);
         continue;
       }
+
+      const user = {
+        id: userProfile.id,
+        email: userProfile.user_auth_info.email,
+        fullName: userProfile.full_name || 'Usuário',
+      }
+      // A CHAVE EXTRA FOI REMOVIDA DA LINHA ANTERIOR (onde estava '};')
+
+      // Adicionar uma verificação para o caso de email ser null, se necessário (já está implícito no check acima)
+      // A verificação `!userProfile.user_auth_info.email` já cobre isso.
+      // Se por algum motivo o objeto `user` pudesse ser formado mas `user.email` fosse explicitamente `null`
+      // (o que não deve acontecer com a query atual se o email for NOT NULL na tabela auth.users),
+      // a verificação abaixo seria redundante ou precisaria de ajuste.
+      // A lógica atual com `!userProfile.user_auth_info.email` é suficiente.
+
       const familyMembers: Array<{ name: string; email: string; relationship: string }> = userProfile.family_members
 
       if (!familyMembers || familyMembers.length === 0) {
@@ -92,36 +95,32 @@ serve(async (req: Request) => {
 
       console.log(`Processando usuário: ${user.fullName} (${user.id})`);
 
-      // 5. Verificar a entrada de humor do usuário para "ontem"
       const { data: moodEntry, error: moodError } = await supabaseAdminClient
         .from('mood_entries')
         .select('mood_value')
         .eq('user_id', user.id)
         .eq('entry_date', yesterdayString)
-        .single() // Esperamos uma ou nenhuma entrada
+        .single()
 
-      if (moodError && moodError.code !== 'PGRST116') { // PGRST116: "Query returned no rows"
+      if (moodError && moodError.code !== 'PGRST116') {
         console.error(`Erro ao buscar humor para ${user.fullName}:`, moodError)
-        continue // Pula para o próximo usuário
+        continue
       }
 
       let reasonForNotification: string | null = null
       let userMoodValue: number | null = null
 
       if (!moodEntry) {
-        // Condição 1: Nenhuma entrada de humor
         reasonForNotification = `${user.fullName} não registrou seu humor ontem (${format(yesterday, 'dd/MM/yyyy', { locale: ptBR })}).`
         console.log(`Notificação para ${user.fullName}: Sem entrada de humor.`)
       } else {
         userMoodValue = moodEntry.mood_value
         if (userMoodValue === 1 || userMoodValue === 2) {
-          // Condição 2: Humor baixo
           reasonForNotification = `${user.fullName} registrou um humor baixo (${userMoodValue}) ontem (${format(yesterday, 'dd/MM/yyyy', { locale: ptBR })}).`
           console.log(`Notificação para ${user.fullName}: Humor baixo (${userMoodValue}).`)
         }
       }
 
-      // 6. Se houver motivo, enviar e-mail para os familiares
       if (reasonForNotification) {
         for (const familyMember of familyMembers) {
           try {
@@ -138,7 +137,7 @@ serve(async (req: Request) => {
             `
 
             await resend.emails.send({
-              from: 'Equilibrius <nao-responda@seu-dominio-verificado.com>', // SEU DOMÍNIO VERIFICADO NO RESEND
+              from: 'Equilibrius <nao-responda@seu-dominio-verificado.com>', // SUBSTITUA PELO SEU DOMÍNIO
               to: [familyMember.email],
               subject: emailSubject,
               html: emailHtmlBody,
@@ -147,11 +146,11 @@ serve(async (req: Request) => {
           } catch (emailError) {
             console.error(`Falha ao enviar e-mail para ${familyMember.email}:`, emailError)
           }
-        }
+        } // Fim do loop familyMember
       } else {
         console.log(`Nenhuma notificação necessária para ${user.fullName} para ${yesterdayString}.`)
       }
-    }
+    } // Fim do loop userProfile
 
     return new Response('Verificação de humor concluída.', { status: 200 })
   } catch (error) {
@@ -159,5 +158,3 @@ serve(async (req: Request) => {
     return new Response(`Erro interno: ${error.message}`, { status: 500 })
   }
 })
-
-// As importações de format e ptBR do date-fns foram movidas para o topo do arquivo
