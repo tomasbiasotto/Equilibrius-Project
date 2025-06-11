@@ -48,31 +48,35 @@ serve(async (req: Request) => {
 
     console.log(`Verificando entradas de humor para a data: ${yesterdayString}`)
 
-    // 3. Buscar todos os usuários que têm familiares cadastrados
-    //    e também informações de perfil para personalizar o e-mail.
-    const { data: usersWithFamily, error: usersError } = await supabaseAdminClient
-      .from('profiles') // Assumindo que 'profiles' tem user_id (id) e full_name
-      .select(`
-        id,
-        full_name,
-        auth_users_via_id:users ( email ),
-        family_members!inner ( name, email, relationship )
-      `)
-      //.not('family_members', 'is', null) // Garante que haja pelo menos um familiar
+    const nomeDaForeignKeyConstraintDeProfilesParaAuthUsers = 'profiles_id_fkey'; // SUBSTITUA PELO VALOR REAL
 
-    if (usersError) throw usersError
-    if (!usersWithFamily || usersWithFamily.length === 0) {
-      console.log('Nenhum usuário com familiares cadastrados encontrado.')
-      return new Response('Nenhum usuário para processar', { status: 200 })
+    const { data: usersData, error: usersError } = await supabaseAdminClient
+    .from('profiles')
+    .select(`
+      id,
+      full_name,
+      user_auth_info: ${nomeDaForeignKeyConstraintDeProfilesParaAuthUsers}!inner ( email ), 
+      family_members!inner ( name, email, relationship )
+    `)
+    .not('family_members', 'is', null)
+
+  if (usersError) throw usersError
+  if (!usersData || usersData.length === 0) {
+    console.log('Nenhum usuário com familiares cadastrados encontrado.')
+    return new Response('Nenhum usuário para processar', { status: 200 })
+  }
+
+  for (const userProfile of usersData) {
+    if (!userProfile.user_auth_info || !userProfile.user_auth_info.email) {
+      console.warn(`Usuário ${userProfile.id} não tem dados de autenticação (email) associados em 'user_auth_info'. Pulando.`);
+      continue;
     }
 
-    // 4. Iterar sobre cada usuário
-    for (const userProfile of usersWithFamily) {
-      const user = {
-        id: userProfile.id,
-        // Acessa o email através do alias que demos à relação com auth.users
-        email: userProfile.auth_users_via_id ? userProfile.auth_users_via_id.email : null, // <--- AJUSTE AQUI
-        fullName: userProfile.full_name || 'Usuário',
+    const user = {
+      id: userProfile.id,
+      email: userProfile.user_auth_info.email,
+      fullName: userProfile.full_name || 'Usuário',
+    }
       };
       // Adicionar uma verificação para o caso de email ser null, se necessário
       if (!user.email) {
