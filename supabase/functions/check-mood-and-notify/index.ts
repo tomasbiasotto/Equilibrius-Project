@@ -137,7 +137,7 @@ serve(async (req: Request) => {
             `
 
             await resend.emails.send({
-              from: 'Equilibrius <nao-responda@seu-dominio-verificado.com>', // SUBSTITUA PELO SEU DOMÍNIO
+              from: 'Equilibrius equilibrius-br.com.br', // SUBSTITUA PELO SEU DOMÍNIO
               to: [familyMember.email],
               subject: emailSubject,
               html: emailHtmlBody,
