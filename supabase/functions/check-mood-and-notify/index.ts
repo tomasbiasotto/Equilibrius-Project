@@ -1,6 +1,10 @@
+/// <reference path="../supabase-edge.d.ts" />
+
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'npm:resend' // Importa o Resend via npm specifier
+import { format } from "https://esm.sh/date-fns@3.6.0"
+import { ptBR } from "https://esm.sh/date-fns@3.6.0/locale/pt-BR"
 
 // Função para formatar data para YYYY-MM-DD
 const formatDateToYYYYMMDD = (date: Date): string => {
@@ -11,11 +15,15 @@ const formatDateToYYYYMMDD = (date: Date): string => {
 }
 
 serve(async (req: Request) => {
-  // 1. Autenticação (opcional, mas bom para proteger a função se não for só cron)
-  //    Para cron jobs, você pode configurar um segredo no header do cron.
-  const cronSecret = req.headers.get('X-Cron-Secret')
-  if (Deno.env.get('CRON_SECRET') && cronSecret !== Deno.env.get('CRON_SECRET')) {
-    return new Response('Unauthorized', { status: 401 })
+  const cronSecretHeader = req.headers.get('X-Cron-Secret'); // Nome correto do header
+  const configuredCronSecret = Deno.env.get('CRON_SECRET'); // Nome correto do segredo
+
+  console.log(`DEBUG: Header X-Cron-Secret recebido: ${cronSecretHeader}`);
+  console.log(`DEBUG: Segredo CRON_SECRET configurado: ${configuredCronSecret}`);
+
+  if (configuredCronSecret && cronSecretHeader !== configuredCronSecret) {
+    console.warn('ACESSO NÃO AUTORIZADO: Header X-Cron-Secret não corresponde ao segredo configurado.');
+    return new Response('Unauthorized', { status: 401 });
   }
 
   try {
@@ -47,10 +55,10 @@ serve(async (req: Request) => {
       .select(`
         id,
         full_name,
-        users!inner ( email ),
+        auth_users_via_id:users ( email ),
         family_members!inner ( name, email, relationship )
       `)
-      .not('family_members', 'is', null) // Garante que haja pelo menos um familiar
+      //.not('family_members', 'is', null) // Garante que haja pelo menos um familiar
 
     if (usersError) throw usersError
     if (!usersWithFamily || usersWithFamily.length === 0) {
@@ -62,8 +70,14 @@ serve(async (req: Request) => {
     for (const userProfile of usersWithFamily) {
       const user = {
         id: userProfile.id,
-        email: userProfile.users.email, // Ajuste se a estrutura for diferente
+        // Acessa o email através do alias que demos à relação com auth.users
+        email: userProfile.auth_users_via_id ? userProfile.auth_users_via_id.email : null, // <--- AJUSTE AQUI
         fullName: userProfile.full_name || 'Usuário',
+      };
+      // Adicionar uma verificação para o caso de email ser null, se necessário
+      if (!user.email) {
+        console.warn(`Usuário ${user.id} não possui e-mail associado em auth.users. Pulando.`);
+        continue;
       }
       const familyMembers: Array<{ name: string; email: string; relationship: string }> = userProfile.family_members
 
@@ -142,9 +156,4 @@ serve(async (req: Request) => {
   }
 })
 
-// Para usar format e ptBR de date-fns em Deno/Edge Functions,
-// você precisaria importá-los via esm.sh ou similar, pois não são nativos.
-// Exemplo:
-import { format } from "https://esm.sh/date-fns@3.6.0";
-import { ptBR } from "https://esm.sh/date-fns@3.6.0/locale/pt-BR";
-// Ou pré-processe a string de data de forma mais simples se preferir.
+// As importações de format e ptBR do date-fns foram movidas para o topo do arquivo
