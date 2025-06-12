@@ -1,12 +1,12 @@
+// supabase/functions/check-mood-and-notify/index.ts
 /// <reference path="../supabase-edge.d.ts" />
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'npm:resend'
 import { format } from "https://esm.sh/date-fns@3.6.0"
 import { ptBR } from "https://esm.sh/date-fns@3.6.0/locale/pt-BR"
 
-// Função para formatar data para YYYY-MM-DD
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
@@ -18,16 +18,13 @@ serve(async (req: Request) => {
   const cronSecretHeader = req.headers.get('X-Cron-Secret');
   const configuredCronSecret = Deno.env.get('CRON_SECRET');
 
-  console.log(`DEBUG: Header X-Cron-Secret recebido: ${cronSecretHeader}`);
-  console.log(`DEBUG: Segredo CRON_SECRET configurado: ${configuredCronSecret}`);
-
   if (configuredCronSecret && cronSecretHeader !== configuredCronSecret) {
-    console.warn('ACESSO NÃO AUTORIZADO: Header X-Cron-Secret não corresponde ao segredo configurado.');
+    console.warn('ACESSO NÃO AUTORIZADO: Header X-Cron-Secret não corresponde.');
     return new Response('Unauthorized', { status: 401 });
   }
 
   try {
-    const supabaseAdminClient = createClient(
+    const supabaseAdminClient: SupabaseClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
@@ -46,59 +43,55 @@ serve(async (req: Request) => {
 
     console.log(`Verificando entradas de humor para a data: ${yesterdayString}`)
 
-    // !!! IMPORTANTE: Substitua 'profiles_id_fkey' pelo nome real da sua constraint FK !!!
-    // Você pode descobrir o nome usando a query SQL que forneci anteriormente.
-    const nomeDaForeignKeyConstraintDeProfilesParaAuthUsers = 'profiles_id_fkey';
+    // Consulta simplificada: Buscar de 'users' (auth.users) e fazer join com 'family_members'
+    const { data: usersWithFamily, error: usersError } = await supabaseAdminClient
+      .from('users') // Refere-se a auth.users
+      .select(`
+        id,
+        email,
+        family_members!inner ( user_id, name, email, relationship ) 
+      `)
+      .not('family_members', 'is', null) // Garante que apenas usuários com familiares sejam selecionados
 
-    const { data: usersData, error: usersError } = await supabaseAdminClient
-    .from('profiles')
-    .select(`
-      id,
-      full_name,
-      user_auth_info: ${nomeDaForeignKeyConstraintDeProfilesParaAuthUsers}!inner ( email ), 
-      family_members!inner ( name, email, relationship )
-    `)
-    .not('family_members', 'is', null)
+    if (usersError) {
+        console.error("Erro ao buscar usuários e seus familiares:", JSON.stringify(usersError, null, 2));
+        throw usersError;
+    }
 
-    if (usersError) throw usersError
-    if (!usersData || usersData.length === 0) {
+    if (!usersWithFamily || usersWithFamily.length === 0) {
       console.log('Nenhum usuário com familiares cadastrados encontrado.')
       return new Response('Nenhum usuário para processar', { status: 200 })
     }
 
-    for (const userProfile of usersData) {
-      if (!userProfile.user_auth_info || !userProfile.user_auth_info.email) {
-        console.warn(`Usuário ${userProfile.id} não tem dados de autenticação (email) associados em 'user_auth_info'. Pulando.`);
-        continue;
-      }
+    for (const userData of usersWithFamily) {
+      // Se full_name não está disponível, podemos usar o email ou uma saudação genérica.
+      // Para este exemplo, vamos usar o início do email se full_name da tabela profiles não for usado.
+      const userNameForEmail = userData.email.split('@')[0] || 'Usuário';
 
       const user = {
-        id: userProfile.id,
-        email: userProfile.user_auth_info.email,
-        fullName: userProfile.full_name || 'Usuário',
+        id: userData.id,
+        email: userData.email,
+        // Se você decidir usar profiles no futuro, buscaria o full_name daqui.
+        // Por agora, usamos uma alternativa.
+        fullName: userNameForEmail,
       }
-      // A CHAVE EXTRA FOI REMOVIDA DA LINHA ANTERIOR (onde estava '};')
 
-      // Adicionar uma verificação para o caso de email ser null, se necessário (já está implícito no check acima)
-      // A verificação `!userProfile.user_auth_info.email` já cobre isso.
-      // Se por algum motivo o objeto `user` pudesse ser formado mas `user.email` fosse explicitamente `null`
-      // (o que não deve acontecer com a query atual se o email for NOT NULL na tabela auth.users),
-      // a verificação abaixo seria redundante ou precisaria de ajuste.
-      // A lógica atual com `!userProfile.user_auth_info.email` é suficiente.
-
-      const familyMembers: Array<{ name: string; email: string; relationship: string }> = userProfile.family_members
+      const familyMembers: Array<{ name: string; email: string; relationship: string }> | null = userData.family_members
 
       if (!familyMembers || familyMembers.length === 0) {
-        console.log(`Usuário ${user.fullName} (${user.id}) não tem familiares ativos. Pulando.`);
+        // Este log é redundante por causa do .not('family_members', 'is', null) na query,
+        // mas é uma boa verificação de segurança.
+        console.log(`Usuário ${user.fullName} (${user.id}) não tem familiares ativos (verificação interna). Pulando.`);
         continue;
       }
 
-      console.log(`Processando usuário: ${user.fullName} (${user.id})`);
+      console.log(`Processando usuário: ${user.fullName} (${user.id}, ${user.email})`);
 
+      // Verificar a entrada de humor do usuário para "ontem"
       const { data: moodEntry, error: moodError } = await supabaseAdminClient
         .from('mood_entries')
         .select('mood_value')
-        .eq('user_id', user.id)
+        .eq('user_id', user.id) // user.id é o auth.users.id
         .eq('entry_date', yesterdayString)
         .single()
 
@@ -135,26 +128,27 @@ serve(async (req: Request) => {
               <p>Atenciosamente,</p>
               <p>Equipe Equilibrius</p>
             `
+            const fromEmail = 'Equilibrius onboarding@resend.dev'; // ALTERE AQUI
 
             await resend.emails.send({
-              from: 'Equilibrius equilibrius-br.com.br', // SUBSTITUA PELO SEU DOMÍNIO
+              from: fromEmail,
               to: [familyMember.email],
               subject: emailSubject,
               html: emailHtmlBody,
             })
             console.log(`E-mail enviado para ${familyMember.email} sobre ${user.fullName}`)
-          } catch (emailError) {
-            console.error(`Falha ao enviar e-mail para ${familyMember.email}:`, emailError)
+          } catch (emailError: any) {
+            console.error(`Falha ao enviar e-mail para ${familyMember.email} sobre ${user.fullName}:`, emailError.message || emailError)
           }
-        } // Fim do loop familyMember
+        }
       } else {
         console.log(`Nenhuma notificação necessária para ${user.fullName} para ${yesterdayString}.`)
       }
-    } // Fim do loop userProfile
+    }
 
     return new Response('Verificação de humor concluída.', { status: 200 })
-  } catch (error) {
-    console.error('Erro na Edge Function check-mood-and-notify:', error)
-    return new Response(`Erro interno: ${error.message}`, { status: 500 })
+  } catch (error: any) {
+    console.error('Erro GERAL na Edge Function check-mood-and-notify:', error.message || error)
+    return new Response(`Erro interno: ${error.message || 'Erro desconhecido'}`, { status: 500 })
   }
 })
