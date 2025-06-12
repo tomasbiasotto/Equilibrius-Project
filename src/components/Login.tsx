@@ -71,10 +71,16 @@ const Login: React.FC = () => {
       
       {/* Container principal com efeito de vidro */}
       <div className="bg-white/90 backdrop-blur-sm p-8 rounded-xl shadow-xl w-full max-w-md border border-blue-50 relative z-10">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-brand">Equilibrius</h1>
-          <p className="text-blue-700 mt-3 font-medium">Seu caminho para o equilíbrio emocional</p>
-          <div className="h-1 w-20 bg-blue-500 mx-auto mt-4 rounded-full"></div>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <img 
+            src="/logo.svg.png" 
+            alt="Equilibrius Logo" 
+            width="120" 
+            height="120" 
+            className="mb-4 mix-blend-multiply" 
+          />
+          <h1 className="text-3xl font-bold text-blue-700 mb-1">Equilibrius</h1>
+          <p className="text-blue-600 mt-1 font-medium">Seu caminho para o equilíbrio emocional</p>
         </div>
         
         <div className="text-center mb-6 text-gray-600 italic">
@@ -89,16 +95,16 @@ const Login: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-blue-700">
+            <label htmlFor="email" className="block text-sm font-semibold text-blue-700">
               Email
             </label>
-            <div className="relative">
+            <div className="relative mt-1 rounded-md shadow-sm">
               <input
                 type="email"
                 id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-blue-200 bg-blue-50/30 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-all duration-200 pl-10"
+                className="block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white sm:text-sm transition-all duration-200 pl-10"
                 required
                 disabled={loading}
                 placeholder="seu@email.com"
@@ -113,16 +119,16 @@ const Login: React.FC = () => {
           </div>
           
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-blue-700">
+            <label htmlFor="password" className="block text-sm font-semibold text-blue-700">
               Senha
             </label>
-            <div className="relative">
+            <div className="relative mt-1 rounded-md shadow-sm">
               <input
                 type="password"
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-blue-200 bg-blue-50/30 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-all duration-200 pl-10"
+                className="block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white sm:text-sm transition-all duration-200 pl-10"
                 required
                 disabled={loading}
                 placeholder="••••••••"
@@ -137,10 +143,18 @@ const Login: React.FC = () => {
           
           <button
             type="submit"
-            className="w-full flex justify-center py-3 px-6 border border-transparent rounded-lg shadow-md text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-60 transition-all duration-200 transform hover:translate-y-[-2px] font-medium text-base"
+            className="mt-4 w-full flex justify-center py-3 px-6 border border-transparent rounded-md shadow-xl text-white bg-gradient-to-r from-blue-600 to-brand hover:from-blue-700 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 transition-all duration-200 font-semibold text-base"
             disabled={loading}
           >
-            {loading ? 'Processando...' : 'Entrar no Equilibrius'}
+            {loading ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processando...
+              </span>
+            ) : 'Entrar no Equilibrius'}
           </button>
         </form>
 
@@ -156,24 +170,30 @@ const Login: React.FC = () => {
 
 
 
-          <div className="text-center space-y-3 mt-4">
+          <div className="grid grid-cols-1 gap-3 mt-4">
             <button
               onClick={() => setAuthMode('register')}
-              className="text-blue-600 hover:text-blue-800 transition-colors font-medium text-sm hover:underline"
+              className="px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 transition-all rounded-lg border border-blue-200 flex items-center justify-center shadow-sm hover:shadow"
             >
-              🚀 Não tem uma conta? Inicie sua jornada
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+              Não tem uma conta? Registre-se
             </button>
             
             <button
               onClick={() => setAuthMode('reset')}
-              className="block w-full text-sm text-blue-500 hover:text-blue-700 transition-colors mt-2"
+              className="px-4 py-2 text-blue-600 hover:text-blue-800 transition-all rounded-lg flex items-center justify-center hover:bg-blue-50/50 font-medium text-sm"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
               Esqueceu sua senha?
             </button>
           </div>
           
-          <div className="text-center text-xs text-blue-400 mt-6">
-            <p>Ao entrar, você concorda com nossos termos de uso e política de privacidade.</p>
+          <div className="text-center text-xs mt-6 p-3 bg-blue-50 rounded-lg border border-blue-100 text-blue-600">
+            <p>Ao entrar, você concorda com nossos <span className="font-medium hover:underline cursor-pointer">termos de uso</span> e <span className="font-medium hover:underline cursor-pointer">política de privacidade</span>.</p>
           </div>
         </div>
       </div>
