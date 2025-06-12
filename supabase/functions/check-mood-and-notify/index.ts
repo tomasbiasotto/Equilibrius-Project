@@ -7,12 +7,20 @@ import { Resend } from 'npm:resend'
 import { format } from "https://esm.sh/date-fns@3.6.0"
 import { ptBR } from "https://esm.sh/date-fns@3.6.0/locale/pt-BR"
 
-// Função para formatar data para YYYY-MM-DD
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+interface UserFamilyDataFromRPC {
+  user_id: string;
+  user_email: string;
+  user_full_name_from_profile: string | null;
+  family_member_name: string;
+  family_member_email: string;
+  family_member_relationship: string;
 }
 
 serve(async (req: Request) => {
@@ -44,85 +52,76 @@ serve(async (req: Request) => {
 
     console.log(`Verificando entradas de humor para a data: ${yesterdayString}`)
 
-    // Passo 1: Buscar todos os user_ids distintos que têm familiares cadastrados
-    const { data: distinctUserIdsData, error: distinctUserIdsError } = await supabaseAdminClient
-      .from('family_members')
-      .select('user_id', { count: 'exact', head: false }); // Usamos head:false para obter os dados
+    // Chamar a função PostgreSQL via RPC
+    const { data: rpcData, error: rpcError } = await supabaseAdminClient
+      .rpc('get_users_and_families_for_notification');
 
-    if (distinctUserIdsError) {
-      console.error("Erro ao buscar user_ids distintos de family_members:", JSON.stringify(distinctUserIdsError, null, 2));
-      throw distinctUserIdsError;
+    if (rpcError) {
+      console.error("Erro ao chamar RPC get_users_and_families_for_notification:", JSON.stringify(rpcError, null, 2));
+      // Se a RPC falhar, não podemos continuar.
+      return new Response(`Erro ao buscar dados via RPC: ${rpcError.message}`, { status: 500 });
     }
 
-    if (!distinctUserIdsData || distinctUserIdsData.length === 0) {
-      console.log('Nenhum familiar cadastrado encontrado para processar.');
+    const processedData = rpcData as UserFamilyDataFromRPC[] | null;
+
+    if (!processedData || processedData.length === 0) {
+      console.log('Nenhum usuário com familiares encontrado via RPC.');
       return new Response('Nenhum usuário para processar', { status: 200 });
     }
     
-    // Extrair apenas os user_ids únicos
-    const userIdsToProcess = [...new Set(distinctUserIdsData.map(item => item.user_id))].filter(id => id != null);
+    const usersToNotifyMap = new Map<string, { 
+        id: string; 
+        email: string; 
+        fullName: string; 
+        familyMembers: Array<{ name: string; email: string; relationship: string }> 
+    }>();
 
-    if (userIdsToProcess.length === 0) {
-        console.log('Nenhum user_id válido encontrado após filtragem.');
-        return new Response('Nenhum usuário para processar', { status: 200 });
+    for (const record of processedData) {
+      const userId = record.user_id;
+      const userEmail = record.user_email;
+      const userNameForEmail = record.user_full_name_from_profile || userEmail.split('@')[0] || 'Usuário'; 
+
+      if (!usersToNotifyMap.has(userId)) {
+        usersToNotifyMap.set(userId, {
+          id: userId,
+          email: userEmail,
+          fullName: userNameForEmail,
+          familyMembers: []
+        });
+      }
+      
+      usersToNotifyMap.get(userId)!.familyMembers.push({
+        name: record.family_member_name,
+        email: record.family_member_email,
+        relationship: record.family_member_relationship
+      });
     }
-    
-    console.log(`IDs de usuários a processar: ${userIdsToProcess.join(', ')}`);
 
-    // Passo 2: Iterar sobre cada user_id e buscar seus detalhes e familiares
-    for (const userId of userIdsToProcess) {
-      // Buscar detalhes do usuário (de auth.users)
-      const { data: userData, error: userError } = await supabaseAdminClient
-        .from('users') // Supabase JS client mapeia 'users' para 'auth.users'
-        .select('id, email')
-        .eq('id', userId)
-        .single();
+    const usersToNotifyList = Array.from(usersToNotifyMap.values());
+    console.log(`${usersToNotifyList.length} usuários únicos para processar.`);
 
-      if (userError) {
-        console.error(`Erro ao buscar detalhes do usuário ${userId}:`, JSON.stringify(userError, null, 2));
-        continue; // Pula para o próximo user_id
-      }
-
-      if (!userData) {
-        console.warn(`Usuário com ID ${userId} não encontrado na tabela 'users' (auth.users). Pulando.`);
-        continue;
-      }
-
-      // Buscar familiares para este usuário
-      const { data: familyMembers, error: familyError } = await supabaseAdminClient
-        .from('family_members')
-        .select('name, email, relationship')
-        .eq('user_id', userId);
-
-      if (familyError) {
-        console.error(`Erro ao buscar familiares para o usuário ${userId}:`, JSON.stringify(familyError, null, 2));
-        continue; // Pula para o próximo user_id
-      }
-
-      if (!familyMembers || familyMembers.length === 0) {
-        console.log(`Nenhum familiar encontrado para o usuário ${userId} (apesar de esperado). Pulando.`);
-        continue;
-      }
-
-      const user = {
+    for (const userData of usersToNotifyList) {
+      const user = { 
         id: userData.id,
         email: userData.email,
-        fullName: userData.email.split('@')[0] || 'Usuário', // Nome simplificado
-      };
+        fullName: userData.fullName,
+      }
+      const familyMembers = userData.familyMembers; 
 
       console.log(`Processando usuário: ${user.fullName} (${user.id}) com ${familyMembers.length} familiar(es).`);
 
-      // Verificar a entrada de humor do usuário para "ontem"
+      // ESTA QUERY NÃO DEVERIA CAUSAR O ERRO "public.users does not exist"
+      // A FK em mood_entries.user_id aponta para auth.users.id
       const { data: moodEntry, error: moodError } = await supabaseAdminClient
-        .from('mood_entries')
+        .from('mood_entries') // Esta tabela está em 'public'
         .select('mood_value')
-        .eq('user_id', user.id)
+        .eq('user_id', user.id) // user.id aqui é o UUID de auth.users
         .eq('entry_date', yesterdayString)
         .single();
 
-      if (moodError && moodError.code !== 'PGRST116') {
+      if (moodError && moodError.code !== 'PGRST116') { 
         console.error(`Erro ao buscar humor para ${user.fullName} (${user.id}):`, moodError);
-        continue;
+        continue; 
       }
 
       let reasonForNotification: string | null = null;
@@ -169,7 +168,7 @@ serve(async (req: Request) => {
       } else {
         console.log(`Nenhuma notificação necessária para ${user.fullName} para ${yesterdayString}.`);
       }
-    } // Fim do loop por userId
+    } 
 
     return new Response('Verificação de humor concluída.', { status: 200 });
   } catch (error: any) {
