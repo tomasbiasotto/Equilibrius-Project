@@ -7,6 +7,7 @@ import { Resend } from 'npm:resend'
 import { format } from "https://esm.sh/date-fns@3.6.0"
 import { ptBR } from "https://esm.sh/date-fns@3.6.0/locale/pt-BR"
 
+// Função para formatar data para YYYY-MM-DD
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
@@ -17,6 +18,10 @@ const formatDateToYYYYMMDD = (date: Date): string => {
 serve(async (req: Request) => {
   const cronSecretHeader = req.headers.get('X-Cron-Secret');
   const configuredCronSecret = Deno.env.get('CRON_SECRET');
+
+  // Comente ou remova este log em produção
+  // console.log(`DEBUG: Header X-Cron-Secret recebido: ${cronSecretHeader}`);
+  // console.log(`DEBUG: Segredo CRON_SECRET configurado: ${configuredCronSecret}`);
 
   if (configuredCronSecret && cronSecretHeader !== configuredCronSecret) {
     console.warn('ACESSO NÃO AUTORIZADO: Header X-Cron-Secret não corresponde.');
@@ -43,49 +48,78 @@ serve(async (req: Request) => {
 
     console.log(`Verificando entradas de humor para a data: ${yesterdayString}`)
 
-    // Consulta simplificada: Buscar de 'users' (auth.users) e fazer join com 'family_members'
-    const { data: usersWithFamily, error: usersError } = await supabaseAdminClient
-      .from('users') // Refere-se a auth.users
+    // Query Modificada: Partir de 'family_members' e fazer join com 'users'
+    const { data: familyDataWithUsers, error: queryError } = await supabaseAdminClient
+      .from('family_members')
       .select(`
-        id,
-        email,
-        family_members!inner ( user_id, name, email, relationship ) 
+        user_id, 
+        name,      // Nome do familiar
+        email,     // Email do familiar
+        relationship,
+        users!inner ( id, email ) // Dados do usuário (auth.users)
       `)
-      .not('family_members', 'is', null) // Garante que apenas usuários com familiares sejam selecionados
+      // O !inner em users garante que só pegamos familiares com usuários válidos.
+      // Não é necessário .not('users', 'is', null) por causa do !inner.
 
-    if (usersError) {
-        console.error("Erro ao buscar usuários e seus familiares:", JSON.stringify(usersError, null, 2));
-        throw usersError;
+    if (queryError) {
+        console.error("Erro ao buscar familiares e seus usuários:", JSON.stringify(queryError, null, 2));
+        throw queryError; // Lança o erro para o catch geral
     }
 
-    if (!usersWithFamily || usersWithFamily.length === 0) {
-      console.log('Nenhum usuário com familiares cadastrados encontrado.')
+    if (!familyDataWithUsers || familyDataWithUsers.length === 0) {
+      console.log('Nenhum familiar cadastrado com usuário associado encontrado.')
       return new Response('Nenhum usuário para processar', { status: 200 })
     }
 
-    for (const userData of usersWithFamily) {
-      // Se full_name não está disponível, podemos usar o email ou uma saudação genérica.
-      // Para este exemplo, vamos usar o início do email se full_name da tabela profiles não for usado.
-      const userNameForEmail = userData.email.split('@')[0] || 'Usuário';
+    // Reagrupar os dados por usuário
+    const usersToNotifyMap = new Map<string, { 
+        id: string; 
+        email: string; 
+        fullName: string; 
+        familyMembers: Array<{ name: string; email: string; relationship: string }> 
+    }>();
 
-      const user = {
-        id: userData.id,
-        email: userData.email,
-        // Se você decidir usar profiles no futuro, buscaria o full_name daqui.
-        // Por agora, usamos uma alternativa.
-        fullName: userNameForEmail,
-      }
-
-      const familyMembers: Array<{ name: string; email: string; relationship: string }> | null = userData.family_members
-
-      if (!familyMembers || familyMembers.length === 0) {
-        // Este log é redundante por causa do .not('family_members', 'is', null) na query,
-        // mas é uma boa verificação de segurança.
-        console.log(`Usuário ${user.fullName} (${user.id}) não tem familiares ativos (verificação interna). Pulando.`);
+    for (const record of familyDataWithUsers) {
+      if (!record.users) {
+        console.warn(`Registro de familiar ${record.name} (ID do familiar não disponível diretamente aqui, user_id: ${record.user_id}) sem dados de usuário retornados do join. Pulando.`);
         continue;
       }
 
-      console.log(`Processando usuário: ${user.fullName} (${user.id}, ${user.email})`);
+      const userId = record.users.id;
+      const userEmail = record.users.email;
+      // Usar a parte antes do @ do e-mail do usuário como nome para o e-mail,
+      // já que não estamos mais buscando 'profiles' nesta função.
+      const userNameForEmail = userEmail.split('@')[0] || 'Usuário'; 
+
+      if (!usersToNotifyMap.has(userId)) {
+        usersToNotifyMap.set(userId, {
+          id: userId,
+          email: userEmail,
+          fullName: userNameForEmail,
+          familyMembers: []
+        });
+      }
+      
+      // Adiciona o familiar atual ao array do usuário correspondente
+      usersToNotifyMap.get(userId)!.familyMembers.push({
+        name: record.name, // Nome do familiar
+        email: record.email, // Email do familiar
+        relationship: record.relationship
+      });
+    }
+
+    const usersToNotifyList = Array.from(usersToNotifyMap.values());
+
+    // Iterar sobre a lista de usuários únicos para notificar
+    for (const userData of usersToNotifyList) {
+      const user = { // Objeto 'user' para consistência com o código anterior
+        id: userData.id,
+        email: userData.email,
+        fullName: userData.fullName,
+      }
+      const familyMembers = userData.familyMembers; // Array de familiares para este usuário
+
+      console.log(`Processando usuário: ${user.fullName} (${user.id}, ${user.email}) com ${familyMembers.length} familiar(es).`);
 
       // Verificar a entrada de humor do usuário para "ontem"
       const { data: moodEntry, error: moodError } = await supabaseAdminClient
@@ -95,9 +129,9 @@ serve(async (req: Request) => {
         .eq('entry_date', yesterdayString)
         .single()
 
-      if (moodError && moodError.code !== 'PGRST116') {
-        console.error(`Erro ao buscar humor para ${user.fullName}:`, moodError)
-        continue
+      if (moodError && moodError.code !== 'PGRST116') { // PGRST116: Query returned no rows
+        console.error(`Erro ao buscar humor para ${user.fullName} (${user.id}):`, moodError)
+        continue // Pula para o próximo usuário
       }
 
       let reasonForNotification: string | null = null
@@ -128,15 +162,16 @@ serve(async (req: Request) => {
               <p>Atenciosamente,</p>
               <p>Equipe Equilibrius</p>
             `
-            const fromEmail = 'Equilibrius onboarding@resend.dev'; // ALTERE AQUI
+            // CERTIFIQUE-SE DE ALTERAR "seu-dominio-verificado.com" ABAIXO
+            const fromEmail = 'Equilibrius <notificacoes@equilibrius-br.com.br>'; // ALTERE AQUI
 
             await resend.emails.send({
               from: fromEmail,
-              to: [familyMember.email],
+              to: [familyMember.email], // Email do familiar
               subject: emailSubject,
               html: emailHtmlBody,
             })
-            console.log(`E-mail enviado para ${familyMember.email} sobre ${user.fullName}`)
+            console.log(`E-mail enviado para ${familyMember.email} (familiar de ${user.fullName})`)
           } catch (emailError: any) {
             console.error(`Falha ao enviar e-mail para ${familyMember.email} sobre ${user.fullName}:`, emailError.message || emailError)
           }
@@ -144,7 +179,7 @@ serve(async (req: Request) => {
       } else {
         console.log(`Nenhuma notificação necessária para ${user.fullName} para ${yesterdayString}.`)
       }
-    }
+    } // Fim do loop por userData
 
     return new Response('Verificação de humor concluída.', { status: 200 })
   } catch (error: any) {
