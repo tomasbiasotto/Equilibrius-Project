@@ -81,7 +81,7 @@ const AppContent = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white flex flex-col">
       <nav className="bg-gradient-to-r from-blue-400 via-blue-500 to-brand shadow-md">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between h-16">
@@ -104,7 +104,7 @@ const AppContent = () => {
       {/* Alerta para registrar humor */}
       {showMoodAlert && <MoodTrackerAlert onOpenMoodTracker={handleNavigateToMood} />}
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-8 pb-32">
         {activeTab === 'dashboard' && <Dashboard onNewEntry={handleNewJournalEntry} />}
         {activeTab === 'mood' && <MoodTracker onNewEntry={handleNewJournalEntry} />}
         {activeTab === 'journal' && (
@@ -123,7 +123,7 @@ const AppContent = () => {
       </main>
 
       {/* Footer (mantido como está) ... */}
-      <footer className="fixed bottom-0 w-full bg-gradient-to-r from-blue-400 via-blue-500 to-brand shadow-md">
+      <footer className="mt-auto w-full bg-gradient-to-r from-blue-400 via-blue-500 to-brand shadow-md">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-around py-3 relative">
             <button
