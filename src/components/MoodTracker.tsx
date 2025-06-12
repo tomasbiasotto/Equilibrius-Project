@@ -210,9 +210,9 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">
+      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8 transition-all hover:shadow-xl">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-800 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-brand">
             Humor {isSameDay(selectedDate, new Date()) ? 'de Hoje' : `do dia ${format(selectedDate, 'dd/MM')}`}
           </h2>
 
@@ -268,17 +268,26 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
           )}
         </div>
 
-        <div className="flex justify-between items-center max-w-xl mx-auto">
+        <div className="flex justify-between items-center max-w-xl mx-auto my-8">
           {moods.map((value) => {
             const isActive = selectedMood === value;
             return (
               <button
                 key={value}
                 onClick={() => setSelectedMood(value)}
-                className={`flex flex-col items-center focus:outline-none transition-transform ${isActive ? 'scale-110' : 'opacity-80 hover:scale-105'}`}
+                className={`flex flex-col items-center focus:outline-none transition-all duration-300 ${isActive ? 'scale-115 -translate-y-2' : 'opacity-85 hover:scale-110 hover:-translate-y-1'}`}
                 aria-label={`Humor ${value}`}
               >
-                <span className={`rounded-full w-14 h-14 flex items-center justify-center text-xl font-bold mb-2 transition-all duration-200 ${getMoodButtonStyles(value, isActive)}`}>
+                <span className={`
+                  rounded-full 
+                  w-16 h-16 
+                  flex items-center justify-center 
+                  text-2xl font-bold 
+                  mb-2 
+                  transition-all duration-300 
+                  ${getMoodButtonStyles(value, isActive)} 
+                  ${isActive ? 'shadow-xl' : 'shadow-md hover:shadow-lg'}
+                `}>
                   {value}
                 </span>
               </button>
@@ -286,20 +295,54 @@ const MoodTracker = ({ onNewEntry }: MoodTrackerProps = {}) => {
           })}
         </div>
         {selectedMood ? (
-          <div className="mt-6 text-center space-y-4">
+          <div className="mt-8 text-center space-y-6">
             <div className="flex flex-col items-center">
-              <span className="inline-block px-4 py-2 rounded-full bg-blue-50 text-blue-600 font-medium mb-2">
-                Seu humor {isSameDay(selectedDate, new Date()) ? 'hoje' : 'neste dia'}: {selectedMood}
-              </span>
+              {/* Estilizando a exibição do humor selecionado baseado na cor do humor */}
+              <div className={`
+                inline-flex items-center gap-3 
+                px-6 py-3 rounded-xl 
+                ${selectedMood === 1 ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' :
+                  selectedMood === 2 ? 'bg-gradient-to-r from-orange-400 to-orange-500 text-white' :
+                  selectedMood === 3 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white' :
+                  selectedMood === 4 ? 'bg-gradient-to-r from-blue-400 to-blue-500 text-white' :
+                  'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                }
+                shadow-md mb-4 font-medium
+              `}>
+                <span className="text-xl">{selectedMood === 1 ? '😞' : 
+                  selectedMood === 2 ? '😐' :
+                  selectedMood === 3 ? '😊' :
+                  selectedMood === 4 ? '😄' : '😁'}</span>
+                <span className="font-bold">
+                  Seu humor {isSameDay(selectedDate, new Date()) ? 'hoje' : 'neste dia'}: {selectedMood}
+                </span>
+              </div>
 
               {canSave && (
-                 <button
-                    onClick={saveMoodEntry}
-                    disabled={loading}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
-                  >
-                    {loading ? 'Salvando...' : (isEntrySavedForSelectedDate ? 'Atualizar registro' : 'Salvar registro')}
-                  </button>
+                <button
+                  onClick={saveMoodEntry}
+                  disabled={loading}
+                  className="
+                    mt-2 px-5 py-2 
+                    bg-white border border-blue-500 
+                    text-blue-600 rounded-full 
+                    hover:bg-blue-50 hover:shadow-md 
+                    transition-all duration-200 
+                    font-medium disabled:opacity-50
+                  "
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Salvando
+                    </span>
+                  ) : (
+                    isEntrySavedForSelectedDate ? 'Atualizar registro' : 'Salvar registro'
+                  )}
+                </button>
               )}
             </div>
 
