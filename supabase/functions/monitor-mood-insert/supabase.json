@@ -1,0 +1,6 @@
+{
+  "name": "monitor-mood-insert",
+  "version": "1.0",
+  "description": "Monitora quando um usuário registra humor baixo (1 ou 2) e notifica familiares",
+  "verify_jwt": false
+}

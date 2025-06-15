@@ -1,0 +1,6 @@
+{
+  "name": "mood-monitor-debug",
+  "version": "1.0",
+  "description": "Função de diagnóstico simplificada para monitorar registros de humor",
+  "verify_jwt": false
+}

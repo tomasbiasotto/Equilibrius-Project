@@ -1,0 +1,6 @@
+{
+  "name": "monitor-mood-test",
+  "version": "1.0",
+  "description": "Função de teste para verificar o envio de emails para familiares",
+  "verify_jwt": false
+}
