@@ -1,5 +1,5 @@
 
-import { Bell, Lock, User, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 
 interface SettingsPanelProps {
   onNavigate?: (screen: string) => void;
@@ -10,7 +10,7 @@ const SettingsPanel = ({ onNavigate }: SettingsPanelProps = {}) => {
     <div className="space-y-8">
       <h2 className="text-2xl font-semibold">Configurações</h2>
 
-      <div className="bg-white rounded-xl shadow-md divide-y">
+      <div className="bg-white rounded-xl shadow-md">
         <div className="p-6">
           <h3 className="text-xl font-semibold mb-4">Familiares</h3>
           <div className="space-y-6">
@@ -27,43 +27,6 @@ const SettingsPanel = ({ onNavigate }: SettingsPanelProps = {}) => {
             </button>
           </div>
         </div>
-        <div className="p-6">
-          <h3 className="text-xl font-semibold mb-4">Perfil</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <User className="text-gray-500" />
-                <span>Informações da Conta</span>
-              </div>
-              <button className="text-brand hover:text-brand/80">Editar</button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Lock className="text-gray-500" />
-                <span>Configurações de Privacidade</span>
-              </div>
-              <button className="text-brand hover:text-brand/80">Gerenciar</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-6">
-          <h3 className="text-xl font-semibold mb-4">Notificações</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Bell className="text-gray-500" />
-                <span>Lembretes Diários</span>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-
       </div>
     </div>
   );
